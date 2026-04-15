@@ -1,0 +1,280 @@
+{% import "github.com/andys/paasmark/benchmark" %}
+{% import "github.com/andys/paasmark/changesets" %}
+{% import "fmt" %}
+{% import "time" %}
+
+{% func BenchmarkForm(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) %}
+{% code
+contents := benchmarkFormContent(form, result, cpuResult, err)
+%}
+{%= Layout("Benchmark", contents) %}
+{% endfunc %}
+
+{% func benchmarkFormContent(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) %}
+<div class="columns">
+  <div class="column is-half">
+    <h1 class="title">PaaS Mark</h1>
+
+    {% if err != nil %}
+    <div class="notification is-danger">
+      {%s err.Error() %}
+    </div>
+    {% endif %}
+
+    <form action="/benchmark" method="POST">
+      <div class="field">
+        <label class="label">Database Type</label>
+        <div class="control">
+          <div class="select is-fullwidth">
+            <select name="driver">
+              <option value="pgx" {% if form.Driver == "pgx" %}selected{% endif %}>PostgreSQL</option>
+              <option value="mysql" {% if form.Driver == "mysql" %}selected{% endif %}>MySQL</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Connection String (DSN)</label>
+        <div class="control">
+          <input class="input" type="text" name="dsn" value="{%s form.DSN %}" 
+            placeholder="postgres://user:pass@localhost:5432/dbname?sslmode=disable">
+        </div>
+        <p class="help">
+          PostgreSQL: postgres://user:pass@host:5432/dbname?sslmode=disable<br>
+          MySQL: user:pass@tcp(host:3306)/dbname
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">Concurrency (parallel workers)</label>
+        <div class="control">
+          <input class="input" type="number" name="concurrency" value="{%s form.Concurrency %}" min="1" max="100">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Duration (seconds)</label>
+        <div class="control">
+          <input class="input" type="number" name="duration" value="{%s form.Duration %}" min="1" max="60">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Seed Data (MB)</label>
+        <div class="control">
+          <input class="input" type="number" name="seed_data_mb" value="{%s form.SeedDataMB %}" min="0" max="1000">
+        </div>
+        <p class="help">
+          Amount of test data to insert at start. Each row has a variable-length name field (0-255 chars, avg 128). Set to 0 for minimal seed data.
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">Query Type</label>
+        <div class="control">
+          <div class="select is-fullwidth">
+            <select name="query_type">
+              <option value="read" {% if form.QueryType == "read" %}selected{% endif %}>Read Only</option>
+              <option value="write" {% if form.QueryType == "write" %}selected{% endif %}>Write Only</option>
+              <option value="mixed" {% if form.QueryType == "mixed" %}selected{% endif %}>Mixed (85% read, 15% write)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="control">
+          <button type="submit" class="button is-primary is-large is-fullwidth">
+            Run Benchmark
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="column is-half">
+    {% if result != nil %}
+    <div class="result-box">
+      <h2 class="title is-4">Benchmark Results</h2>
+
+      {% if cpuResult != nil %}
+      <div class="box">
+        <h3 class="title is-5 has-text-info">CPU Results (SHA256)</h3>
+        <div class="columns is-multiline">
+          <div class="column is-3 has-text-centered">
+            <div class="stat-value has-text-info">{%s formatHashRate(cpuResult.HashesPerSec) %}</div>
+            <div class="stat-label">Hashes/Second</div>
+          </div>
+          <div class="column is-3 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatLargeNumber(cpuResult.TotalHashes) %}</div>
+            <div class="stat-label">Total Hashes ({%d cpuResult.ThreadCount %} threads, 10s)</div>
+          </div>
+          <div class="column is-3 has-text-centered">
+            <div class="stat-value is-size-4">{%d cpuResult.NumCPU %}</div>
+            <div class="stat-label">CPU Cores</div>
+          </div>
+          <div class="column is-3 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatMemoryMB(cpuResult.AvailableMemoryMB) %}</div>
+            <div class="stat-label">Available Memory</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if result.ReadStats != nil || result.WriteStats != nil %}
+      <div class="box">
+        <h3 class="title is-5 has-text-primary">Database Results ({%s benchmark.GetDriverName(form.Driver) %})</h3>
+        <div class="columns">
+          {% if result.ReadStats != nil %}
+          <div class="column">
+            <h5 class="subtitle is-6 has-text-info">Reads</h5>
+            <table class="table is-narrow is-fullwidth">
+              <tr><td>Queries/sec</td><td class="has-text-right">{%s fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec) %}</td></tr>
+              <tr><td>Avg Latency</td><td class="has-text-right">{%s formatDuration(result.ReadStats.AvgLatency) %}</td></tr>
+              <tr><td>P95 Latency</td><td class="has-text-right">{%s formatDuration(result.ReadStats.P95Latency) %}</td></tr>
+              <tr><td>Min Latency</td><td class="has-text-right">{%s formatDuration(result.ReadStats.MinLatency) %}</td></tr>
+              <tr><td>Max Latency</td><td class="has-text-right">{%s formatDuration(result.ReadStats.MaxLatency) %}</td></tr>
+            </table>
+          </div>
+          {% endif %}
+          {% if result.WriteStats != nil %}
+          <div class="column">
+            <h5 class="subtitle is-6 has-text-warning">Writes</h5>
+            <table class="table is-narrow is-fullwidth">
+              <tr><td>Queries/sec</td><td class="has-text-right">{%s fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec) %}</td></tr>
+              <tr><td>Avg Latency</td><td class="has-text-right">{%s formatDuration(result.WriteStats.AvgLatency) %}</td></tr>
+              <tr><td>P95 Latency</td><td class="has-text-right">{%s formatDuration(result.WriteStats.P95Latency) %}</td></tr>
+              <tr><td>Min Latency</td><td class="has-text-right">{%s formatDuration(result.WriteStats.MinLatency) %}</td></tr>
+              <tr><td>Max Latency</td><td class="has-text-right">{%s formatDuration(result.WriteStats.MaxLatency) %}</td></tr>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if result.SequentialResult != nil %}
+      <div class="box">
+        <h4 class="title is-6">Sequential Table Scan</h4>
+        <div class="columns is-multiline">
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value has-text-success">{%s fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec) %}</div>
+            <div class="stat-label">Rows/Second</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatLargeNumber(result.SequentialResult.TotalRows) %}</div>
+            <div class="stat-label">Total Rows</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatDuration(result.SequentialResult.Duration) %}</div>
+            <div class="stat-label">Scan Time</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if result.Errors > 0 %}
+      <div class="notification is-warning">
+        <strong>Errors: {%d int(result.Errors) %}</strong>
+        {% if len(result.ErrorMessages) > 0 %}
+        <ul class="error-list">
+          {% for _, msg := range result.ErrorMessages %}
+          <li>{%s msg %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="notification is-success">
+        No errors during benchmark
+      </div>
+      {% endif %}
+
+      <div class="box">
+        <h3 class="title is-5">CSV Export</h3>
+        <pre class="csv-export" style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem;">concurrency,seed_data_mb,query_type,queries_per_sec,avg_latency_ms,p95_latency_ms,min_latency_ms,max_latency_ms,init_time_s,errors,cpu_hashes_per_sec,cpu_total_hashes,cpu_cores,available_memory_mb{% if result.ReadStats != nil %},read_qps,read_avg_ms,read_p95_ms{% endif %}{% if result.WriteStats != nil %},write_qps,write_avg_ms,write_p95_ms{% endif %}{% if result.SequentialResult != nil %},seq_rows_per_sec,seq_total_rows,seq_scan_time_ms{% endif %}
+{%s form.Concurrency %},{%s form.SeedDataMB %},{%s form.QueryType %},{%s fmt.Sprintf("%.0f", result.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", result.InitDuration.Seconds()) %},{%d int(result.Errors) %},{%s cpuHashesPerSecCSV(cpuResult) %},{%s cpuTotalHashesCSV(cpuResult) %},{%s cpuNumCPUCSV(cpuResult) %},{%s cpuAvailableMemoryCSV(cpuResult) %}{% if result.ReadStats != nil %},{%s fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.ReadStats.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.ReadStats.P95Latency.Nanoseconds())/1000000) %}{% endif %}{% if result.WriteStats != nil %},{%s fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.WriteStats.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.WriteStats.P95Latency.Nanoseconds())/1000000) %}{% endif %}{% if result.SequentialResult != nil %},{%s fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec) %},{%d int(result.SequentialResult.TotalRows) %},{%s fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000) %}{% endif %}</pre>
+      </div>
+    </div>
+    {% else %}
+    <div class="result-box">
+      <div class="box has-text-centered">
+        <p class="is-size-5 has-text-grey">Configure and run a benchmark to see results</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfunc %}
+
+{% code
+func formatDuration(d time.Duration) string {
+	return fmt.Sprintf("%.2fms", float64(d.Nanoseconds())/1000000)
+}
+
+func formatSeconds(d time.Duration) string {
+	return fmt.Sprintf("%.2fs", d.Seconds())
+}
+
+func formatHashRate(rate float64) string {
+	if rate >= 1000000000 {
+		return fmt.Sprintf("%.2f GH/s", rate/1000000000)
+	}
+	if rate >= 1000000 {
+		return fmt.Sprintf("%.2f MH/s", rate/1000000)
+	}
+	if rate >= 1000 {
+		return fmt.Sprintf("%.2f KH/s", rate/1000)
+	}
+	return fmt.Sprintf("%.0f H/s", rate)
+}
+
+func formatLargeNumber(n int64) string {
+	if n >= 1000000000 {
+		return fmt.Sprintf("%.2fB", float64(n)/1000000000)
+	}
+	if n >= 1000000 {
+		return fmt.Sprintf("%.2fM", float64(n)/1000000)
+	}
+	if n >= 1000 {
+		return fmt.Sprintf("%.2fK", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+func cpuHashesPerSecCSV(cpuResult *benchmark.CPUResult) string {
+	if cpuResult == nil {
+		return ""
+	}
+	return fmt.Sprintf("%.0f", cpuResult.HashesPerSec)
+}
+
+func cpuTotalHashesCSV(cpuResult *benchmark.CPUResult) string {
+	if cpuResult == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", cpuResult.TotalHashes)
+}
+
+func cpuNumCPUCSV(cpuResult *benchmark.CPUResult) string {
+	if cpuResult == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", cpuResult.NumCPU)
+}
+
+func cpuAvailableMemoryCSV(cpuResult *benchmark.CPUResult) string {
+	if cpuResult == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", cpuResult.AvailableMemoryMB)
+}
+
+func formatMemoryMB(mb int64) string {
+	if mb >= 1024 {
+		return fmt.Sprintf("%.1f GB", float64(mb)/1024)
+	}
+	return fmt.Sprintf("%d MB", mb)
+}
+%}

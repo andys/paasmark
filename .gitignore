@@ -1,0 +1,8 @@
+config.toml
+tmp/
+bin/
+release/
+.vscode
+*.log
+*.out
+*.test

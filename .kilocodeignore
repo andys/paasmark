@@ -1,0 +1,9 @@
+config.toml
+tmp/
+bin/
+release/
+.vscode
+*.out
+*.test
+tapitalee/vendor/
+*.qtpl.go

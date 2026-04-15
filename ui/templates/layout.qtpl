@@ -1,0 +1,38 @@
+{% func Layout(title string, contents string) %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PaaS Mark - {%s title %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" rel="stylesheet">
+  <style>
+    .navbar { margin-bottom: 1.5rem; }
+    .result-box { margin-top: 2rem; }
+    .stat-value { font-size: 2rem; font-weight: bold; }
+    .stat-label { font-size: 0.9rem; color: #666; }
+    .error-list { max-height: 200px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <nav class="navbar is-dark" role="navigation">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="/">
+        <strong>PaaS Mark</strong>
+      </a>
+    </div>
+    <div class="navbar-menu">
+      <div class="navbar-start">
+        <span class="navbar-item">Hosting Benchmark</span>
+      </div>
+    </div>
+  </nav>
+
+  <section class="section">
+    <div class="container">
+      {%s= contents %}
+    </div>
+  </section>
+</body>
+</html>
+{% endfunc %}
