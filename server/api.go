@@ -31,12 +31,14 @@ func detectDriver(dsn string) string {
 
 // BenchmarkRequest contains parameters for launching a benchmark
 type BenchmarkRequest struct {
-	Driver      string `json:"driver"`       // "pgx" or "mysql"
-	DSN         string `json:"dsn"`          // Database connection string
-	Concurrency int    `json:"concurrency"`  // Number of concurrent workers
-	Duration    int    `json:"duration"`     // Duration in seconds
-	QueryType   string `json:"query_type"`   // "read", "write", or "mixed"
-	SeedDataMB  int    `json:"seed_data_mb"` // MB of test data to insert
+	Driver        string `json:"driver"`         // "pgx" or "mysql"
+	DSN           string `json:"dsn"`            // Database connection string
+	RedisDSN      string `json:"redis_dsn"`      // Redis connection string
+	Concurrency   int    `json:"concurrency"`    // Number of concurrent workers
+	Duration      int    `json:"duration"`       // Duration in seconds
+	QueryType     string `json:"query_type"`     // "read", "write", or "mixed"
+	SeedDataMB    int    `json:"seed_data_mb"`   // MB of test data to insert
+	BenchmarkType string `json:"benchmark_type"` // "cpu", "db", or "redis"
 }
 
 // BenchmarkStatus represents the current state of a benchmark run
@@ -51,12 +53,13 @@ const (
 
 // ResultSet holds the benchmark result along with metadata
 type ResultSet struct {
-	ID        string               `json:"id"`
-	Status    BenchmarkStatus      `json:"status"`
-	Error     string               `json:"error,omitempty"`
-	CreatedAt time.Time            `json:"created_at"`
-	Result    *benchmark.Result    `json:"result,omitempty"`
-	CPUResult *benchmark.CPUResult `json:"cpu_result,omitempty"`
+	ID          string                 `json:"id"`
+	Status      BenchmarkStatus        `json:"status"`
+	Error       string                 `json:"error,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	Result      *benchmark.Result      `json:"result,omitempty"`
+	CPUResult   *benchmark.CPUResult   `json:"cpu_result,omitempty"`
+	RedisResult *benchmark.RedisResult `json:"redis_result,omitempty"`
 }
 
 // resultStore holds all benchmark results in memory
@@ -69,9 +72,17 @@ var resultStore = struct {
 
 // SetupAPI registers the API routes
 func SetupAPI(app *fiber.App) {
+	// Ping endpoint for HTTP benchmarking
+	app.Get("/ping", handlePing)
+
 	api := app.Group("/api")
 	api.Post("/benchmark", handleLaunchBenchmark)
 	api.Get("/benchmark/:id", handleGetBenchmark)
+}
+
+// handlePing returns a simple "OK" text response for HTTP benchmarking
+func handlePing(c *fiber.Ctx) error {
+	return c.SendString("OK")
 }
 
 // handleLaunchBenchmark starts a new benchmark run and returns the ID immediately
@@ -83,15 +94,22 @@ func handleLaunchBenchmark(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate required fields
-	if req.DSN == "" {
+	// For DB benchmarks, DSN is required
+	if req.BenchmarkType == "db" && req.DSN == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "dsn is required",
+			"error": "dsn is required for database benchmarks",
 		})
 	}
 
-	// Auto-detect driver from DSN if not specified
-	if req.Driver == "" {
+	// For Redis benchmarks, RedisDSN is required
+	if req.BenchmarkType == "redis" && req.RedisDSN == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "redis_dsn is required for redis benchmarks",
+		})
+	}
+
+	// Auto-detect driver from DSN if not specified (only needed for DB benchmarks)
+	if req.BenchmarkType == "db" && req.Driver == "" {
 		req.Driver = detectDriver(req.DSN)
 		if req.Driver == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -109,6 +127,15 @@ func handleLaunchBenchmark(c *fiber.Ctx) error {
 	}
 	if req.QueryType == "" {
 		req.QueryType = "mixed"
+	}
+	if req.BenchmarkType == "" {
+		req.BenchmarkType = "cpu"
+	}
+	// Validate benchmark type
+	if req.BenchmarkType != "cpu" && req.BenchmarkType != "db" && req.BenchmarkType != "redis" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "benchmark_type must be 'cpu', 'db', or 'redis'",
+		})
 	}
 
 	// Create result set with unique ID
@@ -139,19 +166,39 @@ func runBenchmarkAsync(id string, req BenchmarkRequest) {
 	rs.Status = StatusRunning
 	resultStore.Unlock()
 
-	cfg := benchmark.Config{
-		Driver:      req.Driver,
-		DSN:         req.DSN,
-		Concurrency: req.Concurrency,
-		Duration:    time.Duration(req.Duration) * time.Second,
-		QueryType:   req.QueryType,
-		SeedDataMB:  req.SeedDataMB,
+	var cpuResult *benchmark.CPUResult
+	var result *benchmark.Result
+	var redisResult *benchmark.RedisResult
+	var err error
+
+	// Run CPU benchmark if requested (10 seconds, 20 threads)
+	if req.BenchmarkType == "cpu" {
+		cpuResult = benchmark.RunCPU(context.Background(), 10*time.Second, 20)
 	}
 
-	// Run CPU benchmark (10 seconds, 20 threads)
-	cpuResult := benchmark.RunCPU(context.Background(), 10*time.Second, 20)
+	// Run DB benchmark if requested
+	if req.BenchmarkType == "db" {
+		cfg := benchmark.Config{
+			Driver:      req.Driver,
+			DSN:         req.DSN,
+			Concurrency: req.Concurrency,
+			Duration:    time.Duration(req.Duration) * time.Second,
+			QueryType:   req.QueryType,
+			SeedDataMB:  req.SeedDataMB,
+		}
+		result, err = benchmark.Run(context.Background(), cfg)
+	}
 
-	result, err := benchmark.Run(context.Background(), cfg)
+	// Run Redis benchmark if requested
+	if req.BenchmarkType == "redis" {
+		redisCfg := benchmark.RedisConfig{
+			DSN:         req.RedisDSN,
+			Concurrency: req.Concurrency,
+			Duration:    time.Duration(req.Duration) * time.Second,
+			SeedDataMB:  req.SeedDataMB,
+		}
+		redisResult, err = benchmark.RunRedis(context.Background(), redisCfg)
+	}
 
 	resultStore.Lock()
 	defer resultStore.Unlock()
@@ -163,6 +210,7 @@ func runBenchmarkAsync(id string, req BenchmarkRequest) {
 		rs.Status = StatusComplete
 		rs.Result = result
 		rs.CPUResult = cpuResult
+		rs.RedisResult = redisResult
 	}
 }
 

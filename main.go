@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -26,12 +27,16 @@ func main() {
 	}
 
 	// Default: Server mode
+	// Parse server flags
+	prefork := flag.Int("prefork", 0, "Number of child processes to fork (0 = disabled, uses Fiber prefork)")
+	flag.Parse()
+
 	// Setup logging
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// Create server
-	app := server.Create()
+	// Create server with prefork option
+	app := server.Create(*prefork)
 
 	// Get port
 	port := os.Getenv("PORT")
@@ -39,7 +44,11 @@ func main() {
 		port = "3000"
 	}
 
-	log.Info().Str("port", port).Msg("Starting server")
+	if *prefork > 0 {
+		log.Info().Str("port", port).Int("prefork", *prefork).Msg("Starting server with prefork")
+	} else {
+		log.Info().Str("port", port).Msg("Starting server")
+	}
 
 	// Start server
 	if err := server.Listen(app, port); err != nil {

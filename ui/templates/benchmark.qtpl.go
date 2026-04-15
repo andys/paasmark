@@ -14,90 +14,93 @@ import "github.com/andys/paasmark/changesets"
 import "fmt"
 
 //line templates/benchmark.qtpl:4
+import "strings"
+
+//line templates/benchmark.qtpl:5
 import "time"
 
-//line templates/benchmark.qtpl:6
+//line templates/benchmark.qtpl:7
 import (
 	qtio422016 "io"
 
 	qt422016 "github.com/valyala/quicktemplate"
 )
 
-//line templates/benchmark.qtpl:6
+//line templates/benchmark.qtpl:7
 var (
 	_ = qtio422016.Copy
 	_ = qt422016.AcquireByteBuffer
 )
 
-//line templates/benchmark.qtpl:6
-func StreamBenchmarkForm(qw422016 *qt422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) {
-//line templates/benchmark.qtpl:6
+//line templates/benchmark.qtpl:7
+func StreamBenchmarkForm(qw422016 *qt422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) {
+//line templates/benchmark.qtpl:7
 	qw422016.N().S(`
 `)
-//line templates/benchmark.qtpl:8
-	contents := benchmarkFormContent(form, result, cpuResult, err)
-
 //line templates/benchmark.qtpl:9
+	contents := benchmarkFormContent(form, result, cpuResult, redisResult, httpResult, err)
+
+//line templates/benchmark.qtpl:10
 	qw422016.N().S(`
 `)
-//line templates/benchmark.qtpl:10
+//line templates/benchmark.qtpl:11
 	StreamLayout(qw422016, "Benchmark", contents)
-//line templates/benchmark.qtpl:10
+//line templates/benchmark.qtpl:11
 	qw422016.N().S(`
 `)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
 }
 
-//line templates/benchmark.qtpl:11
-func WriteBenchmarkForm(qq422016 qtio422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) {
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
+func WriteBenchmarkForm(qq422016 qtio422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) {
+//line templates/benchmark.qtpl:12
 	qw422016 := qt422016.AcquireWriter(qq422016)
-//line templates/benchmark.qtpl:11
-	StreamBenchmarkForm(qw422016, form, result, cpuResult, err)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
+	StreamBenchmarkForm(qw422016, form, result, cpuResult, redisResult, httpResult, err)
+//line templates/benchmark.qtpl:12
 	qt422016.ReleaseWriter(qw422016)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
 }
 
-//line templates/benchmark.qtpl:11
-func BenchmarkForm(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) string {
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
+func BenchmarkForm(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) string {
+//line templates/benchmark.qtpl:12
 	qb422016 := qt422016.AcquireByteBuffer()
-//line templates/benchmark.qtpl:11
-	WriteBenchmarkForm(qb422016, form, result, cpuResult, err)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
+	WriteBenchmarkForm(qb422016, form, result, cpuResult, redisResult, httpResult, err)
+//line templates/benchmark.qtpl:12
 	qs422016 := string(qb422016.B)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
 	qt422016.ReleaseByteBuffer(qb422016)
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
 	return qs422016
-//line templates/benchmark.qtpl:11
+//line templates/benchmark.qtpl:12
 }
 
-//line templates/benchmark.qtpl:13
-func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) {
-//line templates/benchmark.qtpl:13
+//line templates/benchmark.qtpl:14
+func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) {
+//line templates/benchmark.qtpl:14
 	qw422016.N().S(`
 <div class="columns">
   <div class="column is-half">
     <h1 class="title">PaaS Mark</h1>
 
     `)
-//line templates/benchmark.qtpl:18
+//line templates/benchmark.qtpl:19
 	if err != nil {
-//line templates/benchmark.qtpl:18
+//line templates/benchmark.qtpl:19
 		qw422016.N().S(`
     <div class="notification is-danger">
       `)
-//line templates/benchmark.qtpl:20
+//line templates/benchmark.qtpl:21
 		qw422016.E().S(err.Error())
-//line templates/benchmark.qtpl:20
+//line templates/benchmark.qtpl:21
 		qw422016.N().S(`
     </div>
     `)
-//line templates/benchmark.qtpl:22
+//line templates/benchmark.qtpl:23
 	}
-//line templates/benchmark.qtpl:22
+//line templates/benchmark.qtpl:23
 	qw422016.N().S(`
 
     <form action="/benchmark" method="POST">
@@ -107,22 +110,22 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
           <div class="select is-fullwidth">
             <select name="driver">
               <option value="pgx" `)
-//line templates/benchmark.qtpl:30
+//line templates/benchmark.qtpl:31
 	if form.Driver == "pgx" {
-//line templates/benchmark.qtpl:30
+//line templates/benchmark.qtpl:31
 		qw422016.N().S(`selected`)
-//line templates/benchmark.qtpl:30
+//line templates/benchmark.qtpl:31
 	}
-//line templates/benchmark.qtpl:30
+//line templates/benchmark.qtpl:31
 	qw422016.N().S(`>PostgreSQL</option>
               <option value="mysql" `)
-//line templates/benchmark.qtpl:31
+//line templates/benchmark.qtpl:32
 	if form.Driver == "mysql" {
-//line templates/benchmark.qtpl:31
+//line templates/benchmark.qtpl:32
 		qw422016.N().S(`selected`)
-//line templates/benchmark.qtpl:31
+//line templates/benchmark.qtpl:32
 	}
-//line templates/benchmark.qtpl:31
+//line templates/benchmark.qtpl:32
 	qw422016.N().S(`>MySQL</option>
             </select>
           </div>
@@ -130,12 +133,12 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
       </div>
 
       <div class="field">
-        <label class="label">Connection String (DSN)</label>
+        <label class="label">Database Connection String (DSN)</label>
         <div class="control">
           <input class="input" type="text" name="dsn" value="`)
-//line templates/benchmark.qtpl:40
+//line templates/benchmark.qtpl:41
 	qw422016.E().S(form.DSN)
-//line templates/benchmark.qtpl:40
+//line templates/benchmark.qtpl:41
 	qw422016.N().S(`" 
             placeholder="postgres://user:pass@localhost:5432/dbname?sslmode=disable">
         </div>
@@ -146,12 +149,42 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
       </div>
 
       <div class="field">
+        <label class="label">Redis Connection String (DSN)</label>
+        <div class="control">
+          <input class="input" type="text" name="redis_dsn" value="`)
+//line templates/benchmark.qtpl:53
+	qw422016.E().S(form.RedisDSN)
+//line templates/benchmark.qtpl:53
+	qw422016.N().S(`" 
+            placeholder="redis://user:pass@localhost:6379/0">
+        </div>
+        <p class="help">
+          Redis: redis://user:pass@host:6379/0 or redis://host:6379
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">HTTP URL (for HTTP benchmark)</label>
+        <div class="control">
+          <input class="input" type="text" name="http_url" value="`)
+//line templates/benchmark.qtpl:64
+	qw422016.E().S(form.HTTPURL)
+//line templates/benchmark.qtpl:64
+	qw422016.N().S(`" 
+            placeholder="http://localhost:3000">
+        </div>
+        <p class="help">
+          HTTP URL to benchmark. /ping will be appended automatically.
+        </p>
+      </div>
+
+      <div class="field">
         <label class="label">Concurrency (parallel workers)</label>
         <div class="control">
           <input class="input" type="number" name="concurrency" value="`)
-//line templates/benchmark.qtpl:52
+//line templates/benchmark.qtpl:75
 	qw422016.E().S(form.Concurrency)
-//line templates/benchmark.qtpl:52
+//line templates/benchmark.qtpl:75
 	qw422016.N().S(`" min="1" max="100">
         </div>
       </div>
@@ -160,9 +193,9 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
         <label class="label">Duration (seconds)</label>
         <div class="control">
           <input class="input" type="number" name="duration" value="`)
-//line templates/benchmark.qtpl:59
+//line templates/benchmark.qtpl:82
 	qw422016.E().S(form.Duration)
-//line templates/benchmark.qtpl:59
+//line templates/benchmark.qtpl:82
 	qw422016.N().S(`" min="1" max="60">
         </div>
       </div>
@@ -171,9 +204,9 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
         <label class="label">Seed Data (MB)</label>
         <div class="control">
           <input class="input" type="number" name="seed_data_mb" value="`)
-//line templates/benchmark.qtpl:66
+//line templates/benchmark.qtpl:89
 	qw422016.E().S(form.SeedDataMB)
-//line templates/benchmark.qtpl:66
+//line templates/benchmark.qtpl:89
 	qw422016.N().S(`" min="0" max="1000">
         </div>
         <p class="help">
@@ -187,435 +220,566 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
           <div class="select is-fullwidth">
             <select name="query_type">
               <option value="read" `)
-//line templates/benchmark.qtpl:78
+//line templates/benchmark.qtpl:101
 	if form.QueryType == "read" {
-//line templates/benchmark.qtpl:78
+//line templates/benchmark.qtpl:101
 		qw422016.N().S(`selected`)
-//line templates/benchmark.qtpl:78
+//line templates/benchmark.qtpl:101
 	}
-//line templates/benchmark.qtpl:78
+//line templates/benchmark.qtpl:101
 	qw422016.N().S(`>Read Only</option>
               <option value="write" `)
-//line templates/benchmark.qtpl:79
+//line templates/benchmark.qtpl:102
 	if form.QueryType == "write" {
-//line templates/benchmark.qtpl:79
+//line templates/benchmark.qtpl:102
 		qw422016.N().S(`selected`)
-//line templates/benchmark.qtpl:79
+//line templates/benchmark.qtpl:102
 	}
-//line templates/benchmark.qtpl:79
+//line templates/benchmark.qtpl:102
 	qw422016.N().S(`>Write Only</option>
               <option value="mixed" `)
-//line templates/benchmark.qtpl:80
+//line templates/benchmark.qtpl:103
 	if form.QueryType == "mixed" {
-//line templates/benchmark.qtpl:80
+//line templates/benchmark.qtpl:103
 		qw422016.N().S(`selected`)
-//line templates/benchmark.qtpl:80
+//line templates/benchmark.qtpl:103
 	}
-//line templates/benchmark.qtpl:80
+//line templates/benchmark.qtpl:103
 	qw422016.N().S(`>Mixed (85% read, 15% write)</option>
             </select>
           </div>
         </div>
       </div>
 
+      <input type="hidden" name="benchmark_type" id="benchmark_type" value="`)
+//line templates/benchmark.qtpl:109
+	qw422016.E().S(form.BenchmarkType)
+//line templates/benchmark.qtpl:109
+	qw422016.N().S(`">
+
       <div class="field">
-        <div class="control">
-          <button type="submit" class="button is-primary is-large is-fullwidth">
-            Run Benchmark
+        <label class="label">Run Benchmark</label>
+        <div class="buttons">
+          <button type="submit" class="button is-info is-medium" onclick="document.getElementById('benchmark_type').value='cpu'">
+            CPU
+          </button>
+          <button type="submit" class="button is-success is-medium" onclick="document.getElementById('benchmark_type').value='db'">
+            Database
+          </button>
+          <button type="submit" class="button is-danger is-medium" onclick="document.getElementById('benchmark_type').value='redis'">
+            Redis
+          </button>
+          <button type="submit" class="button is-warning is-medium" onclick="document.getElementById('benchmark_type').value='http'">
+            HTTP
           </button>
         </div>
+        <p class="help">CPU benchmark includes memory metrics. Database/Redis benchmarks require their respective connection strings. HTTP benchmark tests /ping endpoint.</p>
       </div>
     </form>
   </div>
 
   <div class="column is-half">
     `)
-//line templates/benchmark.qtpl:97
-	if result != nil {
-//line templates/benchmark.qtpl:97
+//line templates/benchmark.qtpl:133
+	if result != nil || cpuResult != nil || redisResult != nil || httpResult != nil {
+//line templates/benchmark.qtpl:133
 		qw422016.N().S(`
     <div class="result-box">
       <h2 class="title is-4">Benchmark Results</h2>
 
       `)
-//line templates/benchmark.qtpl:101
+//line templates/benchmark.qtpl:137
 		if cpuResult != nil {
-//line templates/benchmark.qtpl:101
+//line templates/benchmark.qtpl:137
 			qw422016.N().S(`
       <div class="box">
         <h3 class="title is-5 has-text-info">CPU Results (SHA256)</h3>
         <div class="columns is-multiline">
           <div class="column is-3 has-text-centered">
             <div class="stat-value has-text-info">`)
-//line templates/benchmark.qtpl:106
+//line templates/benchmark.qtpl:142
 			qw422016.E().S(formatHashRate(cpuResult.HashesPerSec))
-//line templates/benchmark.qtpl:106
+//line templates/benchmark.qtpl:142
 			qw422016.N().S(`</div>
             <div class="stat-label">Hashes/Second</div>
           </div>
           <div class="column is-3 has-text-centered">
             <div class="stat-value is-size-4">`)
-//line templates/benchmark.qtpl:110
+//line templates/benchmark.qtpl:146
 			qw422016.E().S(formatLargeNumber(cpuResult.TotalHashes))
-//line templates/benchmark.qtpl:110
+//line templates/benchmark.qtpl:146
 			qw422016.N().S(`</div>
             <div class="stat-label">Total Hashes (`)
-//line templates/benchmark.qtpl:111
+//line templates/benchmark.qtpl:147
 			qw422016.N().D(cpuResult.ThreadCount)
-//line templates/benchmark.qtpl:111
+//line templates/benchmark.qtpl:147
 			qw422016.N().S(` threads, 10s)</div>
           </div>
           <div class="column is-3 has-text-centered">
             <div class="stat-value is-size-4">`)
-//line templates/benchmark.qtpl:114
+//line templates/benchmark.qtpl:150
 			qw422016.N().D(cpuResult.NumCPU)
-//line templates/benchmark.qtpl:114
+//line templates/benchmark.qtpl:150
 			qw422016.N().S(`</div>
             <div class="stat-label">CPU Cores</div>
           </div>
           <div class="column is-3 has-text-centered">
             <div class="stat-value is-size-4">`)
-//line templates/benchmark.qtpl:118
+//line templates/benchmark.qtpl:154
 			qw422016.E().S(formatMemoryMB(cpuResult.AvailableMemoryMB))
-//line templates/benchmark.qtpl:118
+//line templates/benchmark.qtpl:154
 			qw422016.N().S(`</div>
             <div class="stat-label">Available Memory</div>
           </div>
         </div>
       </div>
       `)
-//line templates/benchmark.qtpl:123
+//line templates/benchmark.qtpl:159
 		}
-//line templates/benchmark.qtpl:123
+//line templates/benchmark.qtpl:159
 		qw422016.N().S(`
 
       `)
-//line templates/benchmark.qtpl:125
-		if result.ReadStats != nil || result.WriteStats != nil {
-//line templates/benchmark.qtpl:125
+//line templates/benchmark.qtpl:161
+		if redisResult != nil {
+//line templates/benchmark.qtpl:161
+			qw422016.N().S(`
+      <div class="box">
+        <h3 class="title is-5 has-text-danger">Redis Results</h3>
+        <div class="columns is-multiline">
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value has-text-danger">`)
+//line templates/benchmark.qtpl:166
+			qw422016.E().S(fmt.Sprintf("%.0f", redisResult.KeysPerSec))
+//line templates/benchmark.qtpl:166
+			qw422016.N().S(`</div>
+            <div class="stat-label">Keys/Second</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">`)
+//line templates/benchmark.qtpl:170
+			qw422016.E().S(formatLargeNumber(redisResult.TotalKeys))
+//line templates/benchmark.qtpl:170
+			qw422016.N().S(`</div>
+            <div class="stat-label">Total Keys</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">`)
+//line templates/benchmark.qtpl:174
+			qw422016.E().S(formatDuration(redisResult.InitDuration))
+//line templates/benchmark.qtpl:174
+			qw422016.N().S(`</div>
+            <div class="stat-label">Seed Time</div>
+          </div>
+        </div>
+        <table class="table is-narrow is-fullwidth">
+          <tr><td>Avg Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:179
+			qw422016.E().S(formatDuration(redisResult.AvgLatency))
+//line templates/benchmark.qtpl:179
+			qw422016.N().S(`</td></tr>
+          <tr><td>P95 Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:180
+			qw422016.E().S(formatDuration(redisResult.P95Latency))
+//line templates/benchmark.qtpl:180
+			qw422016.N().S(`</td></tr>
+          <tr><td>Min Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:181
+			qw422016.E().S(formatDuration(redisResult.MinLatency))
+//line templates/benchmark.qtpl:181
+			qw422016.N().S(`</td></tr>
+          <tr><td>Max Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:182
+			qw422016.E().S(formatDuration(redisResult.MaxLatency))
+//line templates/benchmark.qtpl:182
+			qw422016.N().S(`</td></tr>
+        </table>
+      </div>
+      `)
+//line templates/benchmark.qtpl:185
+		}
+//line templates/benchmark.qtpl:185
+		qw422016.N().S(`
+
+      `)
+//line templates/benchmark.qtpl:187
+		if httpResult != nil {
+//line templates/benchmark.qtpl:187
+			qw422016.N().S(`
+      <div class="box">
+        <h3 class="title is-5 has-text-warning">HTTP Results</h3>
+        <div class="columns is-multiline">
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value has-text-warning">`)
+//line templates/benchmark.qtpl:192
+			qw422016.E().S(fmt.Sprintf("%.0f", httpResult.RequestsPerSec))
+//line templates/benchmark.qtpl:192
+			qw422016.N().S(`</div>
+            <div class="stat-label">Requests/Second</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">`)
+//line templates/benchmark.qtpl:196
+			qw422016.E().S(formatLargeNumber(httpResult.TotalRequests))
+//line templates/benchmark.qtpl:196
+			qw422016.N().S(`</div>
+            <div class="stat-label">Total Requests</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">`)
+//line templates/benchmark.qtpl:200
+			qw422016.E().S(formatLargeNumber(httpResult.SuccessfulReqs))
+//line templates/benchmark.qtpl:200
+			qw422016.N().S(`</div>
+            <div class="stat-label">Successful</div>
+          </div>
+        </div>
+        <table class="table is-narrow is-fullwidth">
+          <tr><td>Avg Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:205
+			qw422016.E().S(formatDuration(httpResult.AvgLatency))
+//line templates/benchmark.qtpl:205
+			qw422016.N().S(`</td></tr>
+          <tr><td>P95 Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:206
+			qw422016.E().S(formatDuration(httpResult.P95Latency))
+//line templates/benchmark.qtpl:206
+			qw422016.N().S(`</td></tr>
+          <tr><td>Min Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:207
+			qw422016.E().S(formatDuration(httpResult.MinLatency))
+//line templates/benchmark.qtpl:207
+			qw422016.N().S(`</td></tr>
+          <tr><td>Max Latency</td><td class="has-text-right">`)
+//line templates/benchmark.qtpl:208
+			qw422016.E().S(formatDuration(httpResult.MaxLatency))
+//line templates/benchmark.qtpl:208
+			qw422016.N().S(`</td></tr>
+        </table>
+      </div>
+      `)
+//line templates/benchmark.qtpl:211
+		}
+//line templates/benchmark.qtpl:211
+		qw422016.N().S(`
+
+      `)
+//line templates/benchmark.qtpl:213
+		if result != nil && (result.ReadStats != nil || result.WriteStats != nil) {
+//line templates/benchmark.qtpl:213
 			qw422016.N().S(`
       <div class="box">
         <h3 class="title is-5 has-text-primary">Database Results (`)
-//line templates/benchmark.qtpl:127
+//line templates/benchmark.qtpl:215
 			qw422016.E().S(benchmark.GetDriverName(form.Driver))
-//line templates/benchmark.qtpl:127
+//line templates/benchmark.qtpl:215
 			qw422016.N().S(`)</h3>
         <div class="columns">
           `)
-//line templates/benchmark.qtpl:129
+//line templates/benchmark.qtpl:217
 			if result.ReadStats != nil {
-//line templates/benchmark.qtpl:129
+//line templates/benchmark.qtpl:217
 				qw422016.N().S(`
           <div class="column">
             <h5 class="subtitle is-6 has-text-info">Reads</h5>
             <table class="table is-narrow is-fullwidth">
               <tr><td>Queries/sec</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:133
+//line templates/benchmark.qtpl:221
 				qw422016.E().S(fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec))
-//line templates/benchmark.qtpl:133
+//line templates/benchmark.qtpl:221
 				qw422016.N().S(`</td></tr>
               <tr><td>Avg Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:134
+//line templates/benchmark.qtpl:222
 				qw422016.E().S(formatDuration(result.ReadStats.AvgLatency))
-//line templates/benchmark.qtpl:134
+//line templates/benchmark.qtpl:222
 				qw422016.N().S(`</td></tr>
               <tr><td>P95 Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:135
+//line templates/benchmark.qtpl:223
 				qw422016.E().S(formatDuration(result.ReadStats.P95Latency))
-//line templates/benchmark.qtpl:135
+//line templates/benchmark.qtpl:223
 				qw422016.N().S(`</td></tr>
               <tr><td>Min Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:136
+//line templates/benchmark.qtpl:224
 				qw422016.E().S(formatDuration(result.ReadStats.MinLatency))
-//line templates/benchmark.qtpl:136
+//line templates/benchmark.qtpl:224
 				qw422016.N().S(`</td></tr>
               <tr><td>Max Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:137
+//line templates/benchmark.qtpl:225
 				qw422016.E().S(formatDuration(result.ReadStats.MaxLatency))
-//line templates/benchmark.qtpl:137
+//line templates/benchmark.qtpl:225
 				qw422016.N().S(`</td></tr>
             </table>
           </div>
           `)
-//line templates/benchmark.qtpl:140
+//line templates/benchmark.qtpl:228
 			}
-//line templates/benchmark.qtpl:140
+//line templates/benchmark.qtpl:228
 			qw422016.N().S(`
           `)
-//line templates/benchmark.qtpl:141
+//line templates/benchmark.qtpl:229
 			if result.WriteStats != nil {
-//line templates/benchmark.qtpl:141
+//line templates/benchmark.qtpl:229
 				qw422016.N().S(`
           <div class="column">
             <h5 class="subtitle is-6 has-text-warning">Writes</h5>
             <table class="table is-narrow is-fullwidth">
               <tr><td>Queries/sec</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:145
+//line templates/benchmark.qtpl:233
 				qw422016.E().S(fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec))
-//line templates/benchmark.qtpl:145
+//line templates/benchmark.qtpl:233
 				qw422016.N().S(`</td></tr>
               <tr><td>Avg Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:146
+//line templates/benchmark.qtpl:234
 				qw422016.E().S(formatDuration(result.WriteStats.AvgLatency))
-//line templates/benchmark.qtpl:146
+//line templates/benchmark.qtpl:234
 				qw422016.N().S(`</td></tr>
               <tr><td>P95 Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:147
+//line templates/benchmark.qtpl:235
 				qw422016.E().S(formatDuration(result.WriteStats.P95Latency))
-//line templates/benchmark.qtpl:147
+//line templates/benchmark.qtpl:235
 				qw422016.N().S(`</td></tr>
               <tr><td>Min Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:148
+//line templates/benchmark.qtpl:236
 				qw422016.E().S(formatDuration(result.WriteStats.MinLatency))
-//line templates/benchmark.qtpl:148
+//line templates/benchmark.qtpl:236
 				qw422016.N().S(`</td></tr>
               <tr><td>Max Latency</td><td class="has-text-right">`)
-//line templates/benchmark.qtpl:149
+//line templates/benchmark.qtpl:237
 				qw422016.E().S(formatDuration(result.WriteStats.MaxLatency))
-//line templates/benchmark.qtpl:149
+//line templates/benchmark.qtpl:237
 				qw422016.N().S(`</td></tr>
             </table>
           </div>
           `)
-//line templates/benchmark.qtpl:152
+//line templates/benchmark.qtpl:240
 			}
-//line templates/benchmark.qtpl:152
+//line templates/benchmark.qtpl:240
 			qw422016.N().S(`
         </div>
       </div>
       `)
-//line templates/benchmark.qtpl:155
+//line templates/benchmark.qtpl:243
 		}
-//line templates/benchmark.qtpl:155
+//line templates/benchmark.qtpl:243
 		qw422016.N().S(`
 
       `)
-//line templates/benchmark.qtpl:157
-		if result.SequentialResult != nil {
-//line templates/benchmark.qtpl:157
+//line templates/benchmark.qtpl:245
+		if result != nil && result.SequentialResult != nil {
+//line templates/benchmark.qtpl:245
 			qw422016.N().S(`
       <div class="box">
         <h4 class="title is-6">Sequential Table Scan</h4>
         <div class="columns is-multiline">
           <div class="column is-4 has-text-centered">
             <div class="stat-value has-text-success">`)
-//line templates/benchmark.qtpl:162
+//line templates/benchmark.qtpl:250
 			qw422016.E().S(fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec))
-//line templates/benchmark.qtpl:162
+//line templates/benchmark.qtpl:250
 			qw422016.N().S(`</div>
             <div class="stat-label">Rows/Second</div>
           </div>
           <div class="column is-4 has-text-centered">
             <div class="stat-value is-size-4">`)
-//line templates/benchmark.qtpl:166
+//line templates/benchmark.qtpl:254
 			qw422016.E().S(formatLargeNumber(result.SequentialResult.TotalRows))
-//line templates/benchmark.qtpl:166
+//line templates/benchmark.qtpl:254
 			qw422016.N().S(`</div>
             <div class="stat-label">Total Rows</div>
           </div>
           <div class="column is-4 has-text-centered">
             <div class="stat-value is-size-4">`)
-//line templates/benchmark.qtpl:170
+//line templates/benchmark.qtpl:258
 			qw422016.E().S(formatDuration(result.SequentialResult.Duration))
-//line templates/benchmark.qtpl:170
+//line templates/benchmark.qtpl:258
 			qw422016.N().S(`</div>
             <div class="stat-label">Scan Time</div>
           </div>
         </div>
       </div>
       `)
-//line templates/benchmark.qtpl:175
+//line templates/benchmark.qtpl:263
 		}
-//line templates/benchmark.qtpl:175
+//line templates/benchmark.qtpl:263
 		qw422016.N().S(`
 
       `)
-//line templates/benchmark.qtpl:177
-		if result.Errors > 0 {
-//line templates/benchmark.qtpl:177
+//line templates/benchmark.qtpl:265
+		if result != nil && result.Errors > 0 {
+//line templates/benchmark.qtpl:265
 			qw422016.N().S(`
       <div class="notification is-warning">
-        <strong>Errors: `)
-//line templates/benchmark.qtpl:179
+        <strong>Database Errors: `)
+//line templates/benchmark.qtpl:267
 			qw422016.N().D(int(result.Errors))
-//line templates/benchmark.qtpl:179
+//line templates/benchmark.qtpl:267
 			qw422016.N().S(`</strong>
         `)
-//line templates/benchmark.qtpl:180
+//line templates/benchmark.qtpl:268
 			if len(result.ErrorMessages) > 0 {
-//line templates/benchmark.qtpl:180
+//line templates/benchmark.qtpl:268
 				qw422016.N().S(`
         <ul class="error-list">
           `)
-//line templates/benchmark.qtpl:182
+//line templates/benchmark.qtpl:270
 				for _, msg := range result.ErrorMessages {
-//line templates/benchmark.qtpl:182
+//line templates/benchmark.qtpl:270
 					qw422016.N().S(`
           <li>`)
-//line templates/benchmark.qtpl:183
+//line templates/benchmark.qtpl:271
 					qw422016.E().S(msg)
-//line templates/benchmark.qtpl:183
+//line templates/benchmark.qtpl:271
 					qw422016.N().S(`</li>
           `)
-//line templates/benchmark.qtpl:184
+//line templates/benchmark.qtpl:272
 				}
-//line templates/benchmark.qtpl:184
+//line templates/benchmark.qtpl:272
 				qw422016.N().S(`
         </ul>
         `)
-//line templates/benchmark.qtpl:186
+//line templates/benchmark.qtpl:274
 			}
-//line templates/benchmark.qtpl:186
+//line templates/benchmark.qtpl:274
 			qw422016.N().S(`
       </div>
       `)
-//line templates/benchmark.qtpl:188
-		} else {
-//line templates/benchmark.qtpl:188
+//line templates/benchmark.qtpl:276
+		} else if result != nil {
+//line templates/benchmark.qtpl:276
 			qw422016.N().S(`
       <div class="notification is-success">
-        No errors during benchmark
+        No errors during database benchmark
       </div>
       `)
-//line templates/benchmark.qtpl:192
+//line templates/benchmark.qtpl:280
 		}
-//line templates/benchmark.qtpl:192
+//line templates/benchmark.qtpl:280
+		qw422016.N().S(`
+
+      `)
+//line templates/benchmark.qtpl:282
+		if redisResult != nil && redisResult.Errors > 0 {
+//line templates/benchmark.qtpl:282
+			qw422016.N().S(`
+      <div class="notification is-warning">
+        <strong>Redis Errors: `)
+//line templates/benchmark.qtpl:284
+			qw422016.N().D(int(redisResult.Errors))
+//line templates/benchmark.qtpl:284
+			qw422016.N().S(`</strong>
+        `)
+//line templates/benchmark.qtpl:285
+			if len(redisResult.ErrorMessages) > 0 {
+//line templates/benchmark.qtpl:285
+				qw422016.N().S(`
+        <ul class="error-list">
+          `)
+//line templates/benchmark.qtpl:287
+				for _, msg := range redisResult.ErrorMessages {
+//line templates/benchmark.qtpl:287
+					qw422016.N().S(`
+          <li>`)
+//line templates/benchmark.qtpl:288
+					qw422016.E().S(msg)
+//line templates/benchmark.qtpl:288
+					qw422016.N().S(`</li>
+          `)
+//line templates/benchmark.qtpl:289
+				}
+//line templates/benchmark.qtpl:289
+				qw422016.N().S(`
+        </ul>
+        `)
+//line templates/benchmark.qtpl:291
+			}
+//line templates/benchmark.qtpl:291
+			qw422016.N().S(`
+      </div>
+      `)
+//line templates/benchmark.qtpl:293
+		} else if redisResult != nil {
+//line templates/benchmark.qtpl:293
+			qw422016.N().S(`
+      <div class="notification is-success">
+        No errors during Redis benchmark
+      </div>
+      `)
+//line templates/benchmark.qtpl:297
+		}
+//line templates/benchmark.qtpl:297
+		qw422016.N().S(`
+
+      `)
+//line templates/benchmark.qtpl:299
+		if httpResult != nil && httpResult.Errors > 0 {
+//line templates/benchmark.qtpl:299
+			qw422016.N().S(`
+      <div class="notification is-warning">
+        <strong>HTTP Errors: `)
+//line templates/benchmark.qtpl:301
+			qw422016.N().D(int(httpResult.Errors))
+//line templates/benchmark.qtpl:301
+			qw422016.N().S(`</strong>
+        `)
+//line templates/benchmark.qtpl:302
+			if len(httpResult.ErrorMessages) > 0 {
+//line templates/benchmark.qtpl:302
+				qw422016.N().S(`
+        <ul class="error-list">
+          `)
+//line templates/benchmark.qtpl:304
+				for _, msg := range httpResult.ErrorMessages {
+//line templates/benchmark.qtpl:304
+					qw422016.N().S(`
+          <li>`)
+//line templates/benchmark.qtpl:305
+					qw422016.E().S(msg)
+//line templates/benchmark.qtpl:305
+					qw422016.N().S(`</li>
+          `)
+//line templates/benchmark.qtpl:306
+				}
+//line templates/benchmark.qtpl:306
+				qw422016.N().S(`
+        </ul>
+        `)
+//line templates/benchmark.qtpl:308
+			}
+//line templates/benchmark.qtpl:308
+			qw422016.N().S(`
+      </div>
+      `)
+//line templates/benchmark.qtpl:310
+		} else if httpResult != nil {
+//line templates/benchmark.qtpl:310
+			qw422016.N().S(`
+      <div class="notification is-success">
+        No errors during HTTP benchmark
+      </div>
+      `)
+//line templates/benchmark.qtpl:314
+		}
+//line templates/benchmark.qtpl:314
 		qw422016.N().S(`
 
       <div class="box">
         <h3 class="title is-5">CSV Export</h3>
-        <pre class="csv-export" style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem;">concurrency,seed_data_mb,query_type,queries_per_sec,avg_latency_ms,p95_latency_ms,min_latency_ms,max_latency_ms,init_time_s,errors,cpu_hashes_per_sec,cpu_total_hashes,cpu_cores,available_memory_mb`)
-//line templates/benchmark.qtpl:196
-		if result.ReadStats != nil {
-//line templates/benchmark.qtpl:196
-			qw422016.N().S(`,read_qps,read_avg_ms,read_p95_ms`)
-//line templates/benchmark.qtpl:196
-		}
-//line templates/benchmark.qtpl:196
-		if result.WriteStats != nil {
-//line templates/benchmark.qtpl:196
-			qw422016.N().S(`,write_qps,write_avg_ms,write_p95_ms`)
-//line templates/benchmark.qtpl:196
-		}
-//line templates/benchmark.qtpl:196
-		if result.SequentialResult != nil {
-//line templates/benchmark.qtpl:196
-			qw422016.N().S(`,seq_rows_per_sec,seq_total_rows,seq_scan_time_ms`)
-//line templates/benchmark.qtpl:196
-		}
-//line templates/benchmark.qtpl:196
+        <pre class="csv-export" style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem;">`)
+//line templates/benchmark.qtpl:318
+		qw422016.E().S(csvHeader(result, cpuResult, redisResult, httpResult))
+//line templates/benchmark.qtpl:318
 		qw422016.N().S(`
 `)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(form.Concurrency)
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(form.SeedDataMB)
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(form.QueryType)
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.0f", result.QueriesPerSec))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(fmt.Sprintf("%.2f", result.InitDuration.Seconds()))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.N().D(int(result.Errors))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(cpuHashesPerSecCSV(cpuResult))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(cpuTotalHashesCSV(cpuResult))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(cpuNumCPUCSV(cpuResult))
-//line templates/benchmark.qtpl:197
-		qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-		qw422016.E().S(cpuAvailableMemoryCSV(cpuResult))
-//line templates/benchmark.qtpl:197
-		if result.ReadStats != nil {
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.2f", float64(result.ReadStats.AvgLatency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.2f", float64(result.ReadStats.P95Latency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		}
-//line templates/benchmark.qtpl:197
-		if result.WriteStats != nil {
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.2f", float64(result.WriteStats.AvgLatency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.2f", float64(result.WriteStats.P95Latency.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		}
-//line templates/benchmark.qtpl:197
-		if result.SequentialResult != nil {
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.N().D(int(result.SequentialResult.TotalRows))
-//line templates/benchmark.qtpl:197
-			qw422016.N().S(`,`)
-//line templates/benchmark.qtpl:197
-			qw422016.E().S(fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000))
-//line templates/benchmark.qtpl:197
-		}
-//line templates/benchmark.qtpl:197
+//line templates/benchmark.qtpl:319
+		qw422016.E().S(csvValues(form, result, cpuResult, redisResult, httpResult))
+//line templates/benchmark.qtpl:319
 		qw422016.N().S(`</pre>
       </div>
     </div>
     `)
-//line templates/benchmark.qtpl:200
+//line templates/benchmark.qtpl:322
 	} else {
-//line templates/benchmark.qtpl:200
+//line templates/benchmark.qtpl:322
 		qw422016.N().S(`
     <div class="result-box">
       <div class="box has-text-centered">
@@ -623,43 +787,43 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
       </div>
     </div>
     `)
-//line templates/benchmark.qtpl:206
+//line templates/benchmark.qtpl:328
 	}
-//line templates/benchmark.qtpl:206
+//line templates/benchmark.qtpl:328
 	qw422016.N().S(`
   </div>
 </div>
 `)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
 }
 
-//line templates/benchmark.qtpl:209
-func writebenchmarkFormContent(qq422016 qtio422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) {
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
+func writebenchmarkFormContent(qq422016 qtio422016.Writer, form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) {
+//line templates/benchmark.qtpl:331
 	qw422016 := qt422016.AcquireWriter(qq422016)
-//line templates/benchmark.qtpl:209
-	streambenchmarkFormContent(qw422016, form, result, cpuResult, err)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
+	streambenchmarkFormContent(qw422016, form, result, cpuResult, redisResult, httpResult, err)
+//line templates/benchmark.qtpl:331
 	qt422016.ReleaseWriter(qw422016)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
 }
 
-//line templates/benchmark.qtpl:209
-func benchmarkFormContent(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) string {
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
+func benchmarkFormContent(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) string {
+//line templates/benchmark.qtpl:331
 	qb422016 := qt422016.AcquireByteBuffer()
-//line templates/benchmark.qtpl:209
-	writebenchmarkFormContent(qb422016, form, result, cpuResult, err)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
+	writebenchmarkFormContent(qb422016, form, result, cpuResult, redisResult, httpResult, err)
+//line templates/benchmark.qtpl:331
 	qs422016 := string(qb422016.B)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
 	qt422016.ReleaseByteBuffer(qb422016)
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
 	return qs422016
-//line templates/benchmark.qtpl:209
+//line templates/benchmark.qtpl:331
 }
 
-//line templates/benchmark.qtpl:212
+//line templates/benchmark.qtpl:334
 func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.2fms", float64(d.Nanoseconds())/1000000)
 }
@@ -727,4 +891,119 @@ func formatMemoryMB(mb int64) string {
 		return fmt.Sprintf("%.1f GB", float64(mb)/1024)
 	}
 	return fmt.Sprintf("%d MB", mb)
+}
+
+func csvHeader(result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult) string {
+	var parts []string
+
+	// CPU headers (memory is part of CPU benchmark)
+	if cpuResult != nil {
+		parts = append(parts, "cpu_hashes_per_sec", "cpu_total_hashes", "cpu_cores", "available_memory_mb")
+	}
+
+	// DB headers
+	if result != nil {
+		parts = append(parts, "concurrency", "seed_data_mb", "query_type", "queries_per_sec", "avg_latency_ms", "p95_latency_ms", "min_latency_ms", "max_latency_ms", "init_time_s", "errors")
+		if result.ReadStats != nil {
+			parts = append(parts, "read_qps", "read_avg_ms", "read_p95_ms")
+		}
+		if result.WriteStats != nil {
+			parts = append(parts, "write_qps", "write_avg_ms", "write_p95_ms")
+		}
+		if result.SequentialResult != nil {
+			parts = append(parts, "seq_rows_per_sec", "seq_total_rows", "seq_scan_time_ms")
+		}
+	}
+
+	// Redis headers
+	if redisResult != nil {
+		parts = append(parts, "redis_keys_per_sec", "redis_total_keys", "redis_avg_latency_ms", "redis_p95_latency_ms", "redis_min_latency_ms", "redis_max_latency_ms", "redis_init_time_s", "redis_errors")
+	}
+
+	// HTTP headers
+	if httpResult != nil {
+		parts = append(parts, "http_requests_per_sec", "http_total_requests", "http_avg_latency_ms", "http_p95_latency_ms", "http_min_latency_ms", "http_max_latency_ms", "http_errors")
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func csvValues(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult) string {
+	var parts []string
+
+	// CPU values (memory is part of CPU benchmark)
+	if cpuResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", cpuResult.HashesPerSec),
+			fmt.Sprintf("%d", cpuResult.TotalHashes),
+			fmt.Sprintf("%d", cpuResult.NumCPU),
+			fmt.Sprintf("%d", cpuResult.AvailableMemoryMB),
+		)
+	}
+
+	// DB values
+	if result != nil {
+		parts = append(parts,
+			form.Concurrency,
+			form.SeedDataMB,
+			form.QueryType,
+			fmt.Sprintf("%.0f", result.QueriesPerSec),
+			fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", result.InitDuration.Seconds()),
+			fmt.Sprintf("%d", result.Errors),
+		)
+		if result.ReadStats != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec),
+				fmt.Sprintf("%.2f", float64(result.ReadStats.AvgLatency.Nanoseconds())/1000000),
+				fmt.Sprintf("%.2f", float64(result.ReadStats.P95Latency.Nanoseconds())/1000000),
+			)
+		}
+		if result.WriteStats != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec),
+				fmt.Sprintf("%.2f", float64(result.WriteStats.AvgLatency.Nanoseconds())/1000000),
+				fmt.Sprintf("%.2f", float64(result.WriteStats.P95Latency.Nanoseconds())/1000000),
+			)
+		}
+		if result.SequentialResult != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec),
+				fmt.Sprintf("%d", result.SequentialResult.TotalRows),
+				fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000),
+			)
+		}
+	}
+
+	// Redis values
+	if redisResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", redisResult.KeysPerSec),
+			fmt.Sprintf("%d", redisResult.TotalKeys),
+			fmt.Sprintf("%.2f", float64(redisResult.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", redisResult.InitDuration.Seconds()),
+			fmt.Sprintf("%d", redisResult.Errors),
+		)
+	}
+
+	// HTTP values
+	if httpResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", httpResult.RequestsPerSec),
+			fmt.Sprintf("%d", httpResult.TotalRequests),
+			fmt.Sprintf("%.2f", float64(httpResult.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%d", httpResult.Errors),
+		)
+	}
+
+	return strings.Join(parts, ",")
 }

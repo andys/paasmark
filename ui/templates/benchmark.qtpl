@@ -1,16 +1,17 @@
 {% import "github.com/andys/paasmark/benchmark" %}
 {% import "github.com/andys/paasmark/changesets" %}
 {% import "fmt" %}
+{% import "strings" %}
 {% import "time" %}
 
-{% func BenchmarkForm(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) %}
+{% func BenchmarkForm(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) %}
 {% code
-contents := benchmarkFormContent(form, result, cpuResult, err)
+contents := benchmarkFormContent(form, result, cpuResult, redisResult, httpResult, err)
 %}
 {%= Layout("Benchmark", contents) %}
 {% endfunc %}
 
-{% func benchmarkFormContent(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, err error) %}
+{% func benchmarkFormContent(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult, err error) %}
 <div class="columns">
   <div class="column is-half">
     <h1 class="title">PaaS Mark</h1>
@@ -35,7 +36,7 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
       </div>
 
       <div class="field">
-        <label class="label">Connection String (DSN)</label>
+        <label class="label">Database Connection String (DSN)</label>
         <div class="control">
           <input class="input" type="text" name="dsn" value="{%s form.DSN %}" 
             placeholder="postgres://user:pass@localhost:5432/dbname?sslmode=disable">
@@ -43,6 +44,28 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
         <p class="help">
           PostgreSQL: postgres://user:pass@host:5432/dbname?sslmode=disable<br>
           MySQL: user:pass@tcp(host:3306)/dbname
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">Redis Connection String (DSN)</label>
+        <div class="control">
+          <input class="input" type="text" name="redis_dsn" value="{%s form.RedisDSN %}" 
+            placeholder="redis://user:pass@localhost:6379/0">
+        </div>
+        <p class="help">
+          Redis: redis://user:pass@host:6379/0 or redis://host:6379
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">HTTP URL (for HTTP benchmark)</label>
+        <div class="control">
+          <input class="input" type="text" name="http_url" value="{%s form.HTTPURL %}" 
+            placeholder="http://localhost:3000">
+        </div>
+        <p class="help">
+          HTTP URL to benchmark. /ping will be appended automatically.
         </p>
       </div>
 
@@ -83,18 +106,31 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
         </div>
       </div>
 
+      <input type="hidden" name="benchmark_type" id="benchmark_type" value="{%s form.BenchmarkType %}">
+
       <div class="field">
-        <div class="control">
-          <button type="submit" class="button is-primary is-large is-fullwidth">
-            Run Benchmark
+        <label class="label">Run Benchmark</label>
+        <div class="buttons">
+          <button type="submit" class="button is-info is-medium" onclick="document.getElementById('benchmark_type').value='cpu'">
+            CPU
+          </button>
+          <button type="submit" class="button is-success is-medium" onclick="document.getElementById('benchmark_type').value='db'">
+            Database
+          </button>
+          <button type="submit" class="button is-danger is-medium" onclick="document.getElementById('benchmark_type').value='redis'">
+            Redis
+          </button>
+          <button type="submit" class="button is-warning is-medium" onclick="document.getElementById('benchmark_type').value='http'">
+            HTTP
           </button>
         </div>
+        <p class="help">CPU benchmark includes memory metrics. Database/Redis benchmarks require their respective connection strings. HTTP benchmark tests /ping endpoint.</p>
       </div>
     </form>
   </div>
 
   <div class="column is-half">
-    {% if result != nil %}
+    {% if result != nil || cpuResult != nil || redisResult != nil || httpResult != nil %}
     <div class="result-box">
       <h2 class="title is-4">Benchmark Results</h2>
 
@@ -122,7 +158,59 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
       </div>
       {% endif %}
 
-      {% if result.ReadStats != nil || result.WriteStats != nil %}
+      {% if redisResult != nil %}
+      <div class="box">
+        <h3 class="title is-5 has-text-danger">Redis Results</h3>
+        <div class="columns is-multiline">
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value has-text-danger">{%s fmt.Sprintf("%.0f", redisResult.KeysPerSec) %}</div>
+            <div class="stat-label">Keys/Second</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatLargeNumber(redisResult.TotalKeys) %}</div>
+            <div class="stat-label">Total Keys</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatDuration(redisResult.InitDuration) %}</div>
+            <div class="stat-label">Seed Time</div>
+          </div>
+        </div>
+        <table class="table is-narrow is-fullwidth">
+          <tr><td>Avg Latency</td><td class="has-text-right">{%s formatDuration(redisResult.AvgLatency) %}</td></tr>
+          <tr><td>P95 Latency</td><td class="has-text-right">{%s formatDuration(redisResult.P95Latency) %}</td></tr>
+          <tr><td>Min Latency</td><td class="has-text-right">{%s formatDuration(redisResult.MinLatency) %}</td></tr>
+          <tr><td>Max Latency</td><td class="has-text-right">{%s formatDuration(redisResult.MaxLatency) %}</td></tr>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if httpResult != nil %}
+      <div class="box">
+        <h3 class="title is-5 has-text-warning">HTTP Results</h3>
+        <div class="columns is-multiline">
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value has-text-warning">{%s fmt.Sprintf("%.0f", httpResult.RequestsPerSec) %}</div>
+            <div class="stat-label">Requests/Second</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatLargeNumber(httpResult.TotalRequests) %}</div>
+            <div class="stat-label">Total Requests</div>
+          </div>
+          <div class="column is-4 has-text-centered">
+            <div class="stat-value is-size-4">{%s formatLargeNumber(httpResult.SuccessfulReqs) %}</div>
+            <div class="stat-label">Successful</div>
+          </div>
+        </div>
+        <table class="table is-narrow is-fullwidth">
+          <tr><td>Avg Latency</td><td class="has-text-right">{%s formatDuration(httpResult.AvgLatency) %}</td></tr>
+          <tr><td>P95 Latency</td><td class="has-text-right">{%s formatDuration(httpResult.P95Latency) %}</td></tr>
+          <tr><td>Min Latency</td><td class="has-text-right">{%s formatDuration(httpResult.MinLatency) %}</td></tr>
+          <tr><td>Max Latency</td><td class="has-text-right">{%s formatDuration(httpResult.MaxLatency) %}</td></tr>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if result != nil && (result.ReadStats != nil || result.WriteStats != nil) %}
       <div class="box">
         <h3 class="title is-5 has-text-primary">Database Results ({%s benchmark.GetDriverName(form.Driver) %})</h3>
         <div class="columns">
@@ -154,7 +242,7 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
       </div>
       {% endif %}
 
-      {% if result.SequentialResult != nil %}
+      {% if result != nil && result.SequentialResult != nil %}
       <div class="box">
         <h4 class="title is-6">Sequential Table Scan</h4>
         <div class="columns is-multiline">
@@ -174,9 +262,9 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
       </div>
       {% endif %}
 
-      {% if result.Errors > 0 %}
+      {% if result != nil && result.Errors > 0 %}
       <div class="notification is-warning">
-        <strong>Errors: {%d int(result.Errors) %}</strong>
+        <strong>Database Errors: {%d int(result.Errors) %}</strong>
         {% if len(result.ErrorMessages) > 0 %}
         <ul class="error-list">
           {% for _, msg := range result.ErrorMessages %}
@@ -185,16 +273,50 @@ contents := benchmarkFormContent(form, result, cpuResult, err)
         </ul>
         {% endif %}
       </div>
-      {% else %}
+      {% elseif result != nil %}
       <div class="notification is-success">
-        No errors during benchmark
+        No errors during database benchmark
+      </div>
+      {% endif %}
+
+      {% if redisResult != nil && redisResult.Errors > 0 %}
+      <div class="notification is-warning">
+        <strong>Redis Errors: {%d int(redisResult.Errors) %}</strong>
+        {% if len(redisResult.ErrorMessages) > 0 %}
+        <ul class="error-list">
+          {% for _, msg := range redisResult.ErrorMessages %}
+          <li>{%s msg %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% elseif redisResult != nil %}
+      <div class="notification is-success">
+        No errors during Redis benchmark
+      </div>
+      {% endif %}
+
+      {% if httpResult != nil && httpResult.Errors > 0 %}
+      <div class="notification is-warning">
+        <strong>HTTP Errors: {%d int(httpResult.Errors) %}</strong>
+        {% if len(httpResult.ErrorMessages) > 0 %}
+        <ul class="error-list">
+          {% for _, msg := range httpResult.ErrorMessages %}
+          <li>{%s msg %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% elseif httpResult != nil %}
+      <div class="notification is-success">
+        No errors during HTTP benchmark
       </div>
       {% endif %}
 
       <div class="box">
         <h3 class="title is-5">CSV Export</h3>
-        <pre class="csv-export" style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem;">concurrency,seed_data_mb,query_type,queries_per_sec,avg_latency_ms,p95_latency_ms,min_latency_ms,max_latency_ms,init_time_s,errors,cpu_hashes_per_sec,cpu_total_hashes,cpu_cores,available_memory_mb{% if result.ReadStats != nil %},read_qps,read_avg_ms,read_p95_ms{% endif %}{% if result.WriteStats != nil %},write_qps,write_avg_ms,write_p95_ms{% endif %}{% if result.SequentialResult != nil %},seq_rows_per_sec,seq_total_rows,seq_scan_time_ms{% endif %}
-{%s form.Concurrency %},{%s form.SeedDataMB %},{%s form.QueryType %},{%s fmt.Sprintf("%.0f", result.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", result.InitDuration.Seconds()) %},{%d int(result.Errors) %},{%s cpuHashesPerSecCSV(cpuResult) %},{%s cpuTotalHashesCSV(cpuResult) %},{%s cpuNumCPUCSV(cpuResult) %},{%s cpuAvailableMemoryCSV(cpuResult) %}{% if result.ReadStats != nil %},{%s fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.ReadStats.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.ReadStats.P95Latency.Nanoseconds())/1000000) %}{% endif %}{% if result.WriteStats != nil %},{%s fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec) %},{%s fmt.Sprintf("%.2f", float64(result.WriteStats.AvgLatency.Nanoseconds())/1000000) %},{%s fmt.Sprintf("%.2f", float64(result.WriteStats.P95Latency.Nanoseconds())/1000000) %}{% endif %}{% if result.SequentialResult != nil %},{%s fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec) %},{%d int(result.SequentialResult.TotalRows) %},{%s fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000) %}{% endif %}</pre>
+        <pre class="csv-export" style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem;">{%s csvHeader(result, cpuResult, redisResult, httpResult) %}
+{%s csvValues(form, result, cpuResult, redisResult, httpResult) %}</pre>
       </div>
     </div>
     {% else %}
@@ -276,5 +398,120 @@ func formatMemoryMB(mb int64) string {
 		return fmt.Sprintf("%.1f GB", float64(mb)/1024)
 	}
 	return fmt.Sprintf("%d MB", mb)
+}
+
+func csvHeader(result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult) string {
+	var parts []string
+
+	// CPU headers (memory is part of CPU benchmark)
+	if cpuResult != nil {
+		parts = append(parts, "cpu_hashes_per_sec", "cpu_total_hashes", "cpu_cores", "available_memory_mb")
+	}
+
+	// DB headers
+	if result != nil {
+		parts = append(parts, "concurrency", "seed_data_mb", "query_type", "queries_per_sec", "avg_latency_ms", "p95_latency_ms", "min_latency_ms", "max_latency_ms", "init_time_s", "errors")
+		if result.ReadStats != nil {
+			parts = append(parts, "read_qps", "read_avg_ms", "read_p95_ms")
+		}
+		if result.WriteStats != nil {
+			parts = append(parts, "write_qps", "write_avg_ms", "write_p95_ms")
+		}
+		if result.SequentialResult != nil {
+			parts = append(parts, "seq_rows_per_sec", "seq_total_rows", "seq_scan_time_ms")
+		}
+	}
+
+	// Redis headers
+	if redisResult != nil {
+		parts = append(parts, "redis_keys_per_sec", "redis_total_keys", "redis_avg_latency_ms", "redis_p95_latency_ms", "redis_min_latency_ms", "redis_max_latency_ms", "redis_init_time_s", "redis_errors")
+	}
+
+	// HTTP headers
+	if httpResult != nil {
+		parts = append(parts, "http_requests_per_sec", "http_total_requests", "http_avg_latency_ms", "http_p95_latency_ms", "http_min_latency_ms", "http_max_latency_ms", "http_errors")
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func csvValues(form changesets.BenchmarkForm, result *benchmark.Result, cpuResult *benchmark.CPUResult, redisResult *benchmark.RedisResult, httpResult *benchmark.HTTPResult) string {
+	var parts []string
+
+	// CPU values (memory is part of CPU benchmark)
+	if cpuResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", cpuResult.HashesPerSec),
+			fmt.Sprintf("%d", cpuResult.TotalHashes),
+			fmt.Sprintf("%d", cpuResult.NumCPU),
+			fmt.Sprintf("%d", cpuResult.AvailableMemoryMB),
+		)
+	}
+
+	// DB values
+	if result != nil {
+		parts = append(parts,
+			form.Concurrency,
+			form.SeedDataMB,
+			form.QueryType,
+			fmt.Sprintf("%.0f", result.QueriesPerSec),
+			fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", result.InitDuration.Seconds()),
+			fmt.Sprintf("%d", result.Errors),
+		)
+		if result.ReadStats != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.ReadStats.QueriesPerSec),
+				fmt.Sprintf("%.2f", float64(result.ReadStats.AvgLatency.Nanoseconds())/1000000),
+				fmt.Sprintf("%.2f", float64(result.ReadStats.P95Latency.Nanoseconds())/1000000),
+			)
+		}
+		if result.WriteStats != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.WriteStats.QueriesPerSec),
+				fmt.Sprintf("%.2f", float64(result.WriteStats.AvgLatency.Nanoseconds())/1000000),
+				fmt.Sprintf("%.2f", float64(result.WriteStats.P95Latency.Nanoseconds())/1000000),
+			)
+		}
+		if result.SequentialResult != nil {
+			parts = append(parts,
+				fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec),
+				fmt.Sprintf("%d", result.SequentialResult.TotalRows),
+				fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000),
+			)
+		}
+	}
+
+	// Redis values
+	if redisResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", redisResult.KeysPerSec),
+			fmt.Sprintf("%d", redisResult.TotalKeys),
+			fmt.Sprintf("%.2f", float64(redisResult.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(redisResult.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", redisResult.InitDuration.Seconds()),
+			fmt.Sprintf("%d", redisResult.Errors),
+		)
+	}
+
+	// HTTP values
+	if httpResult != nil {
+		parts = append(parts,
+			fmt.Sprintf("%.0f", httpResult.RequestsPerSec),
+			fmt.Sprintf("%d", httpResult.TotalRequests),
+			fmt.Sprintf("%.2f", float64(httpResult.AvgLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.P95Latency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.MinLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%.2f", float64(httpResult.MaxLatency.Nanoseconds())/1000000),
+			fmt.Sprintf("%d", httpResult.Errors),
+		)
+	}
+
+	return strings.Join(parts, ",")
 }
 %}
