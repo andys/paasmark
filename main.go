@@ -28,7 +28,25 @@ func main() {
 
 	// Default: Server mode
 	// Parse server flags
-	prefork := flag.Int("prefork", 0, "Number of child processes to fork (0 = disabled, uses Fiber prefork)")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Paasmark - PaaS Benchmarking Tool
+
+Usage:
+  paasmark [server flags]    Start the benchmark server (default)
+  paasmark remote [flags]    Run benchmarks from CLI
+
+Server Flags:
+`)
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, `
+Environment Variables:
+  PORT    Server port (default: 3000)
+
+For CLI help: paasmark remote -h
+`)
+	}
+
+	prefork := flag.Int("prefork", 0, "Number of child processes to fork (0 = disabled)")
 	flag.Parse()
 
 	// Setup logging

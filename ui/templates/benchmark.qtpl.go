@@ -572,20 +572,20 @@ func streambenchmarkFormContent(qw422016 *qt422016.Writer, form changesets.Bench
         <h4 class="title is-6">Sequential Table Scan</h4>
         <div class="columns is-multiline">
           <div class="column is-4 has-text-centered">
-            <div class="stat-value has-text-success">`)
+            <div class="stat-value is-size-4">`)
 //line templates/benchmark.qtpl:250
-			qw422016.E().S(fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec))
+			qw422016.E().S(formatSeconds(result.InitDuration))
 //line templates/benchmark.qtpl:250
 			qw422016.N().S(`</div>
-            <div class="stat-label">Rows/Second</div>
+            <div class="stat-label">Seed Time</div>
           </div>
           <div class="column is-4 has-text-centered">
-            <div class="stat-value is-size-4">`)
+            <div class="stat-value has-text-success">`)
 //line templates/benchmark.qtpl:254
-			qw422016.E().S(formatLargeNumber(result.SequentialResult.TotalRows))
+			qw422016.E().S(fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec))
 //line templates/benchmark.qtpl:254
 			qw422016.N().S(`</div>
-            <div class="stat-label">Total Rows</div>
+            <div class="stat-label">Rows/Second</div>
           </div>
           <div class="column is-4 has-text-centered">
             <div class="stat-value is-size-4">`)
@@ -903,7 +903,7 @@ func csvHeader(result *benchmark.Result, cpuResult *benchmark.CPUResult, redisRe
 
 	// DB headers
 	if result != nil {
-		parts = append(parts, "concurrency", "seed_data_mb", "query_type", "queries_per_sec", "avg_latency_ms", "p95_latency_ms", "min_latency_ms", "max_latency_ms", "init_time_s", "errors")
+		parts = append(parts, "concurrency", "seed_data_mb", "query_type", "seed_time_s", "queries_per_sec", "avg_latency_ms", "p95_latency_ms", "min_latency_ms", "max_latency_ms", "errors")
 		if result.ReadStats != nil {
 			parts = append(parts, "read_qps", "read_avg_ms", "read_p95_ms")
 		}
@@ -911,7 +911,7 @@ func csvHeader(result *benchmark.Result, cpuResult *benchmark.CPUResult, redisRe
 			parts = append(parts, "write_qps", "write_avg_ms", "write_p95_ms")
 		}
 		if result.SequentialResult != nil {
-			parts = append(parts, "seq_rows_per_sec", "seq_total_rows", "seq_scan_time_ms")
+			parts = append(parts, "seq_rows_per_sec", "seq_scan_time_ms")
 		}
 	}
 
@@ -947,12 +947,12 @@ func csvValues(form changesets.BenchmarkForm, result *benchmark.Result, cpuResul
 			form.Concurrency,
 			form.SeedDataMB,
 			form.QueryType,
+			fmt.Sprintf("%.2f", result.InitDuration.Seconds()),
 			fmt.Sprintf("%.0f", result.QueriesPerSec),
 			fmt.Sprintf("%.2f", float64(result.AvgLatency.Nanoseconds())/1000000),
 			fmt.Sprintf("%.2f", float64(result.P95Latency.Nanoseconds())/1000000),
 			fmt.Sprintf("%.2f", float64(result.MinLatency.Nanoseconds())/1000000),
 			fmt.Sprintf("%.2f", float64(result.MaxLatency.Nanoseconds())/1000000),
-			fmt.Sprintf("%.2f", result.InitDuration.Seconds()),
 			fmt.Sprintf("%d", result.Errors),
 		)
 		if result.ReadStats != nil {
@@ -972,7 +972,6 @@ func csvValues(form changesets.BenchmarkForm, result *benchmark.Result, cpuResul
 		if result.SequentialResult != nil {
 			parts = append(parts,
 				fmt.Sprintf("%.0f", result.SequentialResult.RowsPerSec),
-				fmt.Sprintf("%d", result.SequentialResult.TotalRows),
 				fmt.Sprintf("%.2f", float64(result.SequentialResult.Duration.Nanoseconds())/1000000),
 			)
 		}

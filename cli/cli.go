@@ -130,17 +130,60 @@ type Config struct {
 func Run() error {
 	cfg := Config{}
 
-	flag.StringVar(&cfg.Endpoint, "endpoint", "", "API endpoint URL (required for cpu, db, redis benchmarks)")
-	flag.StringVar(&cfg.DSN, "dsn", "", "Database connection string (required for db benchmarks)")
-	flag.StringVar(&cfg.RedisDSN, "redis-dsn", "", "Redis connection string (required for redis benchmarks)")
-	flag.StringVar(&cfg.HTTPURL, "http-url", "", "HTTP URL to benchmark (required for http benchmarks, /ping will be appended)")
-	flag.IntVar(&cfg.Concurrency, "concurrency", 10, "Number of concurrent workers")
-	flag.IntVar(&cfg.Duration, "duration", 30, "Benchmark duration in seconds")
-	flag.StringVar(&cfg.QueryType, "query-type", "mixed", "Query type: read, write, or mixed")
-	flag.IntVar(&cfg.SeedDataMB, "seed-data-mb", 10, "MB of test data to seed before benchmark")
-	flag.StringVar(&cfg.BenchmarkType, "benchmark-type", "cpu", "Benchmark type: cpu, db, redis, or http")
+	// Create a custom flag set for CLI mode
+	fs := flag.NewFlagSet("paasmark remote", flag.ExitOnError)
 
-	flag.Parse()
+	fs.StringVar(&cfg.BenchmarkType, "benchmark-type", "cpu", "Benchmark type: cpu, db, redis, or http")
+	fs.StringVar(&cfg.Endpoint, "endpoint", "", "API endpoint URL (required for cpu, db, redis)")
+	fs.StringVar(&cfg.DSN, "dsn", "", "Database DSN (required for db)")
+	fs.StringVar(&cfg.RedisDSN, "redis-dsn", "", "Redis DSN (required for redis)")
+	fs.StringVar(&cfg.HTTPURL, "http-url", "", "Target URL (required for http)")
+	fs.IntVar(&cfg.Concurrency, "concurrency", 10, "Number of concurrent workers")
+	fs.IntVar(&cfg.Duration, "duration", 30, "Benchmark duration in seconds")
+	fs.StringVar(&cfg.QueryType, "query-type", "mixed", "DB query type: read, write, or mixed")
+	fs.IntVar(&cfg.SeedDataMB, "seed-data-mb", 10, "MB of test data to seed (db only)")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Paasmark - PaaS Benchmarking Tool
+
+Usage:
+  paasmark remote [flags]
+
+Benchmark Types:
+  cpu    CPU and memory benchmark (runs on remote server)
+  db     Database benchmark with configurable read/write patterns
+  redis  Redis key/value operations benchmark
+  http   HTTP endpoint benchmark (runs locally)
+
+Examples:
+  # CPU benchmark
+  paasmark remote --benchmark-type=cpu --endpoint=https://app.example.com
+
+  # Database benchmark with PostgreSQL
+  paasmark remote --benchmark-type=db --endpoint=https://app.example.com \
+    --dsn="postgres://user:pass@host:5432/db" --duration=60
+
+  # Redis benchmark
+  paasmark remote --benchmark-type=redis --endpoint=https://app.example.com \
+    --redis-dsn="redis://host:6379"
+
+  # HTTP benchmark (local, no remote server needed)
+  paasmark remote --benchmark-type=http --http-url=https://app.example.com \
+    --concurrency=50 --duration=30
+
+Flags:
+`)
+		fs.PrintDefaults()
+		fmt.Fprintf(os.Stderr, `
+Output:
+  Results are written to stdout as CSV (header row + values row).
+  Status messages are written to stderr.
+
+  Example: paasmark remote --benchmark-type=cpu --endpoint=https://app.example.com > results.csv
+`)
+	}
+
+	fs.Parse(os.Args[1:])
 
 	// Validate benchmark type
 	if cfg.BenchmarkType != "cpu" && cfg.BenchmarkType != "db" && cfg.BenchmarkType != "redis" && cfg.BenchmarkType != "http" {
@@ -315,7 +358,7 @@ func outputCSV(rs *ResultSet) {
 	// DB stats
 	if r != nil {
 		headers = append(headers,
-			"init_duration_ns",
+			"seed_time_s",
 			"total_duration_ns",
 			"queries_per_sec",
 			"avg_latency_ns",
@@ -325,7 +368,7 @@ func outputCSV(rs *ResultSet) {
 			"errors",
 		)
 		values = append(values,
-			fmt.Sprintf("%d", r.InitDuration),
+			fmt.Sprintf("%.2f", float64(r.InitDuration)/1e9),
 			fmt.Sprintf("%d", r.TotalDuration),
 			fmt.Sprintf("%.2f", r.QueriesPerSec),
 			fmt.Sprintf("%d", r.AvgLatency),
