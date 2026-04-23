@@ -216,11 +216,10 @@ Output:
 
 	fs.Parse(os.Args[1:])
 
-	// Resolve environment variables for endpoint/DSN fields
-	// If a value doesn't contain "://", treat it as an env var name
+	// Resolve environment variables for endpoint (needed locally to know where to send requests)
+	// DSN and RedisDSN are passed through to the remote server, which resolves them there
 	cfg.Endpoint = resolveEnvOrValue(cfg.Endpoint)
-	cfg.DSN = resolveEnvOrValue(cfg.DSN)
-	cfg.RedisDSN = resolveEnvOrValue(cfg.RedisDSN)
+	// HTTPURL is resolved locally since http benchmarks run locally
 	cfg.HTTPURL = resolveEnvOrValue(cfg.HTTPURL)
 
 	// Validate benchmark type

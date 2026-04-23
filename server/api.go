@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,19 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
+
+// resolveEnvOrValue checks if the input looks like a URI (contains "://").
+// If it does, return it as-is. Otherwise, treat it as an environment variable
+// name and return the value of that environment variable.
+func resolveEnvOrValue(input string) string {
+	if input == "" {
+		return ""
+	}
+	if strings.Contains(input, "://") {
+		return input
+	}
+	return os.Getenv(input)
+}
 
 // detectDriver auto-detects the database driver from DSN format
 func detectDriver(dsn string) string {
@@ -110,7 +124,7 @@ func handleLaunchBenchmark(c *fiber.Ctx) error {
 
 	// Auto-detect driver from DSN if not specified (only needed for DB benchmarks)
 	if req.BenchmarkType == "db" && req.Driver == "" {
-		req.Driver = detectDriver(req.DSN)
+		req.Driver = detectDriver(resolveEnvOrValue(req.DSN))
 		if req.Driver == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "unable to detect driver from DSN, please specify driver",
@@ -178,9 +192,10 @@ func runBenchmarkAsync(id string, req BenchmarkRequest) {
 
 	// Run DB benchmark if requested
 	if req.BenchmarkType == "db" {
+		resolvedDSN := resolveEnvOrValue(req.DSN)
 		cfg := benchmark.Config{
 			Driver:      req.Driver,
-			DSN:         req.DSN,
+			DSN:         resolvedDSN,
 			Concurrency: req.Concurrency,
 			Duration:    time.Duration(req.Duration) * time.Second,
 			QueryType:   req.QueryType,
@@ -192,7 +207,7 @@ func runBenchmarkAsync(id string, req BenchmarkRequest) {
 	// Run Redis benchmark if requested
 	if req.BenchmarkType == "redis" {
 		redisCfg := benchmark.RedisConfig{
-			DSN:         req.RedisDSN,
+			DSN:         resolveEnvOrValue(req.RedisDSN),
 			Concurrency: req.Concurrency,
 			Duration:    time.Duration(req.Duration) * time.Second,
 			SeedDataMB:  req.SeedDataMB,
