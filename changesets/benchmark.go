@@ -1,12 +1,27 @@
 package changesets
 
 import (
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/andys/paasmark/benchmark"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
+
+// resolveEnvOrValue checks if the input looks like a URI (contains "://").
+// If it does, return it as-is. Otherwise, treat it as an environment variable
+// name and return the value of that environment variable.
+func resolveEnvOrValue(input string) string {
+	if input == "" {
+		return ""
+	}
+	if strings.Contains(input, "://") {
+		return input
+	}
+	return os.Getenv(input)
+}
 
 // BenchmarkForm holds form data for benchmark configuration
 type BenchmarkForm struct {
@@ -74,7 +89,7 @@ func (f BenchmarkForm) ToConfig() (benchmark.Config, error) {
 
 	return benchmark.Config{
 		Driver:      f.Driver,
-		DSN:         f.DSN,
+		DSN:         resolveEnvOrValue(f.DSN),
 		Concurrency: concurrency,
 		Duration:    time.Duration(duration) * time.Second,
 		QueryType:   f.QueryType,
@@ -113,7 +128,7 @@ func (f BenchmarkForm) ToRedisConfig() (benchmark.RedisConfig, error) {
 	}
 
 	return benchmark.RedisConfig{
-		DSN:         f.RedisDSN,
+		DSN:         resolveEnvOrValue(f.RedisDSN),
 		Concurrency: concurrency,
 		Duration:    time.Duration(duration) * time.Second,
 		SeedDataMB:  seedDataMB,
@@ -143,7 +158,7 @@ func (f BenchmarkForm) ToHTTPConfig() (benchmark.HTTPConfig, error) {
 	}
 
 	return benchmark.HTTPConfig{
-		URL:         f.HTTPURL,
+		URL:         resolveEnvOrValue(f.HTTPURL),
 		Concurrency: concurrency,
 		Duration:    time.Duration(duration) * time.Second,
 	}, nil

@@ -15,6 +15,19 @@ import (
 	"github.com/andys/paasmark/benchmark"
 )
 
+// resolveEnvOrValue checks if the input looks like a URI (contains "://").
+// If it does, return it as-is. Otherwise, treat it as an environment variable
+// name and return the value of that environment variable.
+func resolveEnvOrValue(input string) string {
+	if input == "" {
+		return ""
+	}
+	if strings.Contains(input, "://") {
+		return input
+	}
+	return os.Getenv(input)
+}
+
 // BenchmarkRequest matches the API request structure
 type BenchmarkRequest struct {
 	Driver        string `json:"driver"`
@@ -124,6 +137,7 @@ type Config struct {
 	QueryType     string
 	SeedDataMB    int
 	BenchmarkType string
+	Iterations    int
 }
 
 // Run executes the CLI mode
@@ -142,6 +156,7 @@ func Run() error {
 	fs.IntVar(&cfg.Duration, "duration", 30, "Benchmark duration in seconds")
 	fs.StringVar(&cfg.QueryType, "query-type", "mixed", "DB query type: read, write, or mixed")
 	fs.IntVar(&cfg.SeedDataMB, "seed-data-mb", 10, "MB of test data to seed (db only)")
+	fs.IntVar(&cfg.Iterations, "iterations", 1, "Number of times to run the benchmark")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Paasmark - PaaS Benchmarking Tool
@@ -155,6 +170,12 @@ Benchmark Types:
   redis  Redis key/value operations benchmark
   http   HTTP endpoint benchmark (runs locally)
 
+Environment Variables:
+  For --endpoint, --dsn, --redis-dsn, and --http-url flags, you can either:
+  - Pass a full URI directly (containing "://")
+  - Pass an environment variable name (if no "://" is found, the value is
+    looked up from the named environment variable)
+
 Examples:
   # CPU benchmark
   paasmark remote --benchmark-type=cpu --endpoint=https://app.example.com
@@ -163,9 +184,17 @@ Examples:
   paasmark remote --benchmark-type=db --endpoint=https://app.example.com \
     --dsn="postgres://user:pass@host:5432/db" --duration=60
 
+  # Using environment variables
+  paasmark remote --benchmark-type=db --endpoint=PAASMARK_ENDPOINT \
+    --dsn=DATABASE_URL --duration=60
+
   # Redis benchmark
   paasmark remote --benchmark-type=redis --endpoint=https://app.example.com \
     --redis-dsn="redis://host:6379"
+
+  # Redis using env var
+  paasmark remote --benchmark-type=redis --endpoint=PAASMARK_ENDPOINT \
+    --redis-dsn=REDIS_URL
 
   # HTTP benchmark (local, no remote server needed)
   paasmark remote --benchmark-type=http --http-url=https://app.example.com \
@@ -176,14 +205,23 @@ Flags:
 		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr, `
 Output:
-  Results are written to stdout as CSV (header row + values row).
+  Results are written to stdout as CSV. When using --iterations > 1,
+  only the first row includes the header.
   Status messages are written to stderr.
 
   Example: paasmark remote --benchmark-type=cpu --endpoint=https://app.example.com > results.csv
+  Example: paasmark remote --benchmark-type=cpu --endpoint=https://app.example.com --iterations=5 > results.csv
 `)
 	}
 
 	fs.Parse(os.Args[1:])
+
+	// Resolve environment variables for endpoint/DSN fields
+	// If a value doesn't contain "://", treat it as an env var name
+	cfg.Endpoint = resolveEnvOrValue(cfg.Endpoint)
+	cfg.DSN = resolveEnvOrValue(cfg.DSN)
+	cfg.RedisDSN = resolveEnvOrValue(cfg.RedisDSN)
+	cfg.HTTPURL = resolveEnvOrValue(cfg.HTTPURL)
 
 	// Validate benchmark type
 	if cfg.BenchmarkType != "cpu" && cfg.BenchmarkType != "db" && cfg.BenchmarkType != "redis" && cfg.BenchmarkType != "http" {
@@ -214,22 +252,29 @@ Output:
 	// Normalize endpoint URL
 	cfg.Endpoint = strings.TrimSuffix(cfg.Endpoint, "/")
 
-	// Start benchmark
-	id, err := startBenchmark(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to start benchmark: %w", err)
+	// Run benchmark for specified number of iterations
+	for i := 0; i < cfg.Iterations; i++ {
+		if cfg.Iterations > 1 {
+			fmt.Fprintf(os.Stderr, "Starting iteration %d of %d...\n", i+1, cfg.Iterations)
+		}
+
+		// Start benchmark
+		id, err := startBenchmark(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to start benchmark: %w", err)
+		}
+
+		fmt.Fprintf(os.Stderr, "Benchmark started with ID: %s\n", id)
+
+		// Poll for result
+		result, err := pollForResult(cfg, id)
+		if err != nil {
+			return fmt.Errorf("failed to get result: %w", err)
+		}
+
+		// Output CSV (only include header on first iteration)
+		outputCSV(result, i == 0)
 	}
-
-	fmt.Fprintf(os.Stderr, "Benchmark started with ID: %s\n", id)
-
-	// Poll for result
-	result, err := pollForResult(cfg, id)
-	if err != nil {
-		return fmt.Errorf("failed to get result: %w", err)
-	}
-
-	// Output CSV
-	outputCSV(result)
 
 	return nil
 }
@@ -324,7 +369,7 @@ func pollForResult(cfg Config, id string) (*ResultSet, error) {
 	}
 }
 
-func outputCSV(rs *ResultSet) {
+func outputCSV(rs *ResultSet, includeHeader bool) {
 	r := rs.Result
 	cpu := rs.CPUResult
 	redis := rs.RedisResult
@@ -467,8 +512,10 @@ func outputCSV(rs *ResultSet) {
 		)
 	}
 
-	// Output header row
-	fmt.Println(strings.Join(headers, ","))
+	// Output header row only if requested
+	if includeHeader {
+		fmt.Println(strings.Join(headers, ","))
+	}
 	// Output values row
 	fmt.Println(strings.Join(values, ","))
 }
@@ -484,22 +531,28 @@ func runHTTPBenchmark(cfg Config) error {
 		Duration:    time.Duration(cfg.Duration) * time.Second,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Duration)*time.Second+10*time.Second)
-	defer cancel()
+	// Run benchmark for specified number of iterations
+	for i := 0; i < cfg.Iterations; i++ {
+		if cfg.Iterations > 1 {
+			fmt.Fprintf(os.Stderr, "Starting iteration %d of %d...\n", i+1, cfg.Iterations)
+		}
 
-	result, err := benchmark.RunHTTP(ctx, httpCfg)
-	if err != nil {
-		return fmt.Errorf("HTTP benchmark failed: %w", err)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Duration)*time.Second+10*time.Second)
+		result, err := benchmark.RunHTTP(ctx, httpCfg)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("HTTP benchmark failed: %w", err)
+		}
+
+		// Output CSV in the same format as other benchmarks (only include header on first iteration)
+		outputHTTPCSV(result, i == 0)
 	}
-
-	// Output CSV in the same format as other benchmarks
-	outputHTTPCSV(result)
 
 	return nil
 }
 
 // outputHTTPCSV outputs HTTP benchmark results as CSV
-func outputHTTPCSV(result *benchmark.HTTPResult) {
+func outputHTTPCSV(result *benchmark.HTTPResult, includeHeader bool) {
 	headers := []string{
 		"requests_per_sec",
 		"avg_latency_ns",
@@ -520,6 +573,268 @@ func outputHTTPCSV(result *benchmark.HTTPResult) {
 		fmt.Sprintf("%d", result.Errors),
 	}
 
-	fmt.Println(strings.Join(headers, ","))
+	if includeHeader {
+		fmt.Println(strings.Join(headers, ","))
+	}
 	fmt.Println(strings.Join(values, ","))
+}
+
+// RunLocal executes benchmarks locally without a remote server
+func RunLocal() error {
+	cfg := Config{}
+
+	// Create a custom flag set for local mode
+	fs := flag.NewFlagSet("paasmark local", flag.ExitOnError)
+
+	fs.StringVar(&cfg.BenchmarkType, "benchmark-type", "cpu", "Benchmark type: cpu, db, redis, or http")
+	fs.StringVar(&cfg.DSN, "dsn", "", "Database DSN (required for db)")
+	fs.StringVar(&cfg.RedisDSN, "redis-dsn", "", "Redis DSN (required for redis)")
+	fs.StringVar(&cfg.HTTPURL, "http-url", "", "Target URL (required for http)")
+	fs.IntVar(&cfg.Concurrency, "concurrency", 10, "Number of concurrent workers")
+	fs.IntVar(&cfg.Duration, "duration", 30, "Benchmark duration in seconds")
+	fs.StringVar(&cfg.QueryType, "query-type", "mixed", "DB query type: read, write, or mixed")
+	fs.IntVar(&cfg.SeedDataMB, "seed-data-mb", 10, "MB of test data to seed (db/redis)")
+	fs.IntVar(&cfg.Iterations, "iterations", 1, "Number of times to run the benchmark")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Paasmark - PaaS Benchmarking Tool
+
+Usage:
+  paasmark local [flags]
+
+Benchmark Types:
+  cpu    CPU and memory benchmark (runs locally)
+  db     Database benchmark with configurable read/write patterns
+  redis  Redis key/value operations benchmark
+  http   HTTP endpoint benchmark
+
+Environment Variables:
+  For --dsn, --redis-dsn, and --http-url flags, you can either:
+  - Pass a full URI directly (containing "://")
+  - Pass an environment variable name (if no "://" is found, the value is
+    looked up from the named environment variable)
+
+Examples:
+  # CPU benchmark
+  paasmark local --benchmark-type=cpu --duration=10
+
+  # Database benchmark with PostgreSQL
+  paasmark local --benchmark-type=db \
+    --dsn="postgres://user:pass@host:5432/db" --duration=60
+
+  # Using environment variables
+  paasmark local --benchmark-type=db --dsn=DATABASE_URL --duration=60
+
+  # Redis benchmark
+  paasmark local --benchmark-type=redis --redis-dsn="redis://host:6379"
+
+  # Redis using env var
+  paasmark local --benchmark-type=redis --redis-dsn=REDIS_URL
+
+  # HTTP benchmark
+  paasmark local --benchmark-type=http --http-url=https://app.example.com \
+    --concurrency=50 --duration=30
+
+Flags:
+`)
+		fs.PrintDefaults()
+		fmt.Fprintf(os.Stderr, `
+Output:
+  Results are written to stdout as CSV. When using --iterations > 1,
+  only the first row includes the header.
+  Status messages are written to stderr.
+
+  Example: paasmark local --benchmark-type=cpu --duration=10 > results.csv
+  Example: paasmark local --benchmark-type=cpu --duration=10 --iterations=5 > results.csv
+`)
+	}
+
+	fs.Parse(os.Args[1:])
+
+	// Resolve environment variables for DSN fields
+	cfg.DSN = resolveEnvOrValue(cfg.DSN)
+	cfg.RedisDSN = resolveEnvOrValue(cfg.RedisDSN)
+	cfg.HTTPURL = resolveEnvOrValue(cfg.HTTPURL)
+
+	// Validate benchmark type
+	if cfg.BenchmarkType != "cpu" && cfg.BenchmarkType != "db" && cfg.BenchmarkType != "redis" && cfg.BenchmarkType != "http" {
+		return fmt.Errorf("--benchmark-type must be 'cpu', 'db', 'redis', or 'http'")
+	}
+
+	// Validate required fields based on benchmark type
+	switch cfg.BenchmarkType {
+	case "db":
+		if cfg.DSN == "" {
+			return fmt.Errorf("--dsn is required for database benchmarks")
+		}
+	case "redis":
+		if cfg.RedisDSN == "" {
+			return fmt.Errorf("--redis-dsn is required for redis benchmarks")
+		}
+	case "http":
+		if cfg.HTTPURL == "" {
+			return fmt.Errorf("--http-url is required for http benchmarks")
+		}
+	}
+
+	// HTTP benchmark already has iteration support built-in
+	if cfg.BenchmarkType == "http" {
+		return runHTTPBenchmark(cfg)
+	}
+
+	ctx := context.Background()
+	duration := time.Duration(cfg.Duration) * time.Second
+
+	// Run benchmark for specified number of iterations
+	for i := 0; i < cfg.Iterations; i++ {
+		if cfg.Iterations > 1 {
+			fmt.Fprintf(os.Stderr, "Starting iteration %d of %d...\n", i+1, cfg.Iterations)
+		}
+
+		// Create result set for output
+		rs := &ResultSet{
+			ID:        "local",
+			Status:    StatusRunning,
+			CreatedAt: time.Now(),
+		}
+
+		switch cfg.BenchmarkType {
+		case "cpu":
+			fmt.Fprintf(os.Stderr, "Running CPU benchmark for %d seconds...\n", cfg.Duration)
+			cpuResult := benchmark.RunCPU(ctx, duration, 20)
+			rs.CPUResult = convertCPUResult(cpuResult)
+
+		case "db":
+			fmt.Fprintf(os.Stderr, "Running DB benchmark against: %s\n", maskDSN(cfg.DSN))
+			fmt.Fprintf(os.Stderr, "Concurrency: %d, Duration: %ds, Query Type: %s, Seed Data: %dMB\n",
+				cfg.Concurrency, cfg.Duration, cfg.QueryType, cfg.SeedDataMB)
+
+			dbCfg := benchmark.Config{
+				Driver:      detectDriver(cfg.DSN),
+				DSN:         cfg.DSN,
+				Concurrency: cfg.Concurrency,
+				Duration:    duration,
+				QueryType:   cfg.QueryType,
+				SeedDataMB:  cfg.SeedDataMB,
+			}
+			result, err := benchmark.Run(ctx, dbCfg)
+			if err != nil {
+				return fmt.Errorf("DB benchmark failed: %w", err)
+			}
+			rs.Result = convertDBResult(result)
+
+		case "redis":
+			fmt.Fprintf(os.Stderr, "Running Redis benchmark against: %s\n", maskDSN(cfg.RedisDSN))
+			fmt.Fprintf(os.Stderr, "Concurrency: %d, Duration: %ds, Seed Data: %dMB\n",
+				cfg.Concurrency, cfg.Duration, cfg.SeedDataMB)
+
+			redisCfg := benchmark.RedisConfig{
+				DSN:         cfg.RedisDSN,
+				Concurrency: cfg.Concurrency,
+				Duration:    duration,
+				SeedDataMB:  cfg.SeedDataMB,
+			}
+			result, err := benchmark.RunRedis(ctx, redisCfg)
+			if err != nil {
+				return fmt.Errorf("Redis benchmark failed: %w", err)
+			}
+			rs.RedisResult = convertRedisResult(result)
+		}
+
+		rs.Status = StatusComplete
+		// Output CSV (only include header on first iteration)
+		outputCSV(rs, i == 0)
+	}
+
+	return nil
+}
+
+// detectDriver determines the database driver from the DSN
+func detectDriver(dsn string) string {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		return "pgx"
+	}
+	if strings.HasPrefix(dsn, "mysql://") || strings.Contains(dsn, "@tcp(") {
+		return "mysql"
+	}
+	// Default to postgres
+	return "pgx"
+}
+
+// maskDSN masks sensitive parts of a DSN for logging
+func maskDSN(dsn string) string {
+	// Simple masking: show protocol and host, mask credentials
+	if idx := strings.Index(dsn, "@"); idx > 0 {
+		if protoIdx := strings.Index(dsn, "://"); protoIdx > 0 {
+			return dsn[:protoIdx+3] + "***@" + dsn[idx+1:]
+		}
+	}
+	return dsn
+}
+
+// convertCPUResult converts benchmark.CPUResult to cli.CPUResult
+func convertCPUResult(r *benchmark.CPUResult) *CPUResult {
+	return &CPUResult{
+		Duration:          r.Duration.Nanoseconds(),
+		TotalHashes:       r.TotalHashes,
+		HashesPerSec:      r.HashesPerSec,
+		ThreadCount:       r.ThreadCount,
+		NumCPU:            r.NumCPU,
+		AvailableMemoryMB: r.AvailableMemoryMB,
+	}
+}
+
+// convertDBResult converts benchmark.Result to cli.Result
+func convertDBResult(r *benchmark.Result) *Result {
+	result := &Result{
+		InitDuration:  r.InitDuration.Nanoseconds(),
+		TotalDuration: r.TotalDuration.Nanoseconds(),
+		QueriesPerSec: r.QueriesPerSec,
+		AvgLatency:    r.AvgLatency.Nanoseconds(),
+		MinLatency:    r.MinLatency.Nanoseconds(),
+		MaxLatency:    r.MaxLatency.Nanoseconds(),
+		P95Latency:    r.P95Latency.Nanoseconds(),
+		Errors:        r.Errors,
+		ErrorMessages: r.ErrorMessages,
+	}
+
+	if r.ReadStats != nil {
+		result.ReadStats = &QueryStats{
+			Count:         r.ReadStats.Count,
+			QueriesPerSec: r.ReadStats.QueriesPerSec,
+			AvgLatency:    r.ReadStats.AvgLatency.Nanoseconds(),
+			MinLatency:    r.ReadStats.MinLatency.Nanoseconds(),
+			MaxLatency:    r.ReadStats.MaxLatency.Nanoseconds(),
+			P95Latency:    r.ReadStats.P95Latency.Nanoseconds(),
+		}
+	}
+
+	if r.WriteStats != nil {
+		result.WriteStats = &QueryStats{
+			Count:         r.WriteStats.Count,
+			QueriesPerSec: r.WriteStats.QueriesPerSec,
+			AvgLatency:    r.WriteStats.AvgLatency.Nanoseconds(),
+			MinLatency:    r.WriteStats.MinLatency.Nanoseconds(),
+			MaxLatency:    r.WriteStats.MaxLatency.Nanoseconds(),
+			P95Latency:    r.WriteStats.P95Latency.Nanoseconds(),
+		}
+	}
+
+	return result
+}
+
+// convertRedisResult converts benchmark.RedisResult to cli.RedisResult
+func convertRedisResult(r *benchmark.RedisResult) *RedisResult {
+	return &RedisResult{
+		InitDuration:  r.InitDuration.Nanoseconds(),
+		TotalDuration: r.TotalDuration.Nanoseconds(),
+		KeysPerSec:    r.KeysPerSec,
+		AvgLatency:    r.AvgLatency.Nanoseconds(),
+		MinLatency:    r.MinLatency.Nanoseconds(),
+		MaxLatency:    r.MaxLatency.Nanoseconds(),
+		P95Latency:    r.P95Latency.Nanoseconds(),
+		TotalKeys:     r.TotalKeys,
+		Errors:        r.Errors,
+		ErrorMessages: r.ErrorMessages,
+	}
 }

@@ -13,12 +13,21 @@ import (
 )
 
 func main() {
-	// Check if running in CLI mode (first argument is "remote")
+	// Check if running in CLI mode (first argument is "remote" or "local")
 	if len(os.Args) > 1 && os.Args[0] != "server" {
 		// Remove the "remote" argument and run CLI
 		if os.Args[1] == "remote" {
 			os.Args = append(os.Args[:1], os.Args[2:]...)
 			if err := cli.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		// Remove the "local" argument and run CLI in local mode
+		if os.Args[1] == "local" {
+			os.Args = append(os.Args[:1], os.Args[2:]...)
+			if err := cli.RunLocal(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
@@ -33,7 +42,8 @@ func main() {
 
 Usage:
   paasmark [server flags]    Start the benchmark server (default)
-  paasmark remote [flags]    Run benchmarks from CLI
+  paasmark remote [flags]    Run benchmarks via remote API
+  paasmark local [flags]     Run benchmarks locally
 
 Server Flags:
 `)
@@ -42,7 +52,7 @@ Server Flags:
 Environment Variables:
   PORT    Server port (default: 3000)
 
-For CLI help: paasmark remote -h
+For CLI help: paasmark remote -h or paasmark local -h
 `)
 	}
 

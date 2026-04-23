@@ -43,7 +43,8 @@ contents := benchmarkFormContent(form, result, cpuResult, redisResult, httpResul
         </div>
         <p class="help">
           PostgreSQL: postgres://user:pass@host:5432/dbname?sslmode=disable<br>
-          MySQL: user:pass@tcp(host:3306)/dbname
+          MySQL: user:pass@tcp(host:3306)/dbname<br>
+          Or use an env var name (e.g. DATABASE_URL) - resolved if no "://" present
         </p>
       </div>
 
@@ -54,7 +55,8 @@ contents := benchmarkFormContent(form, result, cpuResult, redisResult, httpResul
             placeholder="redis://user:pass@localhost:6379/0">
         </div>
         <p class="help">
-          Redis: redis://user:pass@host:6379/0 or redis://host:6379
+          Redis: redis://user:pass@host:6379/0 or redis://host:6379<br>
+          Or use an env var name (e.g. REDIS_URL) - resolved if no "://" present
         </p>
       </div>
 
@@ -65,7 +67,8 @@ contents := benchmarkFormContent(form, result, cpuResult, redisResult, httpResul
             placeholder="http://localhost:3000">
         </div>
         <p class="help">
-          HTTP URL to benchmark. /ping will be appended automatically.
+          HTTP URL to benchmark. /ping will be appended automatically.<br>
+          Or use an env var name (e.g. HTTP_URL) - resolved if no "://" present
         </p>
       </div>
 
